@@ -42,7 +42,6 @@ pip install fastmcp mcp[cli]
 
 ### 2. 配置允许访问的目录
 
-#### 方法一：使用环境变量（推荐）
 
 1. 复制环境变量配置模板：
 ```bash
@@ -55,28 +54,6 @@ cp .env.example .env
 MCP_ALLOWED_DIRECTORIES=C:\Users\YourName\Documents;D:\Projects;E:\Data
 ```
 
-#### 方法二：设置系统环境变量
-
-**Windows (PowerShell):**
-```powershell
-$env:MCP_ALLOWED_DIRECTORIES="C:\Users\YourName\Documents;D:\Projects"
-```
-
-**Linux/macOS:**
-```bash
-export MCP_ALLOWED_DIRECTORIES="/home/username/documents:/home/username/projects"
-```
-
-#### 方法三：直接修改代码（不推荐）
-
-编辑 `server.py` 中的 `initialize_allowed_directories()` 调用：
-
-```python
-initialize_allowed_directories(
-    "/path/to/your/safe/directory",
-    "C:\\Users\\YourName\\Documents"
-)
-```
 
 ### 3. 启动服务器
 
@@ -84,11 +61,6 @@ initialize_allowed_directories(
 python server.py
 ```
 
-### 4. 测试功能
-
-```bash
-python test_server.py
-```
 
 ## 配置说明
 
