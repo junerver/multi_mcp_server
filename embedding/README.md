@@ -41,12 +41,26 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 创建 schema
 CREATE SCHEMA IF NOT EXISTS code_gen;
 
--- 创建表
+-- 创建父子分块表，首先删除已存在的表
+DROP TABLE IF EXISTS code_gen.open_ai_embeddings;
 CREATE TABLE IF NOT EXISTS code_gen.open_ai_embeddings (
     id VARCHAR(191) PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parent_id VARCHAR(191),  -- 父块ID，如果是父块则为NULL
     content TEXT NOT NULL,
-    embedding vector(768) NOT NULL
+    embedding vector(1536) NOT NULL,
+    chunk_type VARCHAR(20) NOT NULL DEFAULT 'child',  -- 'parent' 或 'child'
+    file_path TEXT,  -- 源文件路径
+    chunk_index INTEGER,  -- 在文件中的块索引
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- 添加外键约束
+    FOREIGN KEY (parent_id) REFERENCES code_gen.open_ai_embeddings(id) ON DELETE CASCADE
 );
+
+-- 创建索引以提高查询性能
+CREATE INDEX IF NOT EXISTS idx_parent_id ON code_gen.open_ai_embeddings(parent_id);
+CREATE INDEX IF NOT EXISTS idx_chunk_type ON code_gen.open_ai_embeddings(chunk_type);
+CREATE INDEX IF NOT EXISTS idx_file_path ON code_gen.open_ai_embeddings(file_path);
 ```
 
 ## 配置说明
@@ -67,8 +81,9 @@ CONFIG = {
     },
     'schema': 'code_gen',                  # 数据库 schema
     'table': 'open_ai_embeddings',         # 数据表名
-    'chunk_size': 1000,                    # 文档分块大小
-    'overlap': 200                         # 分块重叠大小
+    'parent_chunk_size': 2000,             # 父块大小（较大的语义单元）
+    'child_chunk_size': 500,               # 子块大小（较小的检索单元）
+    'overlap': 100                         # 分块重叠大小
 }
 ```
 

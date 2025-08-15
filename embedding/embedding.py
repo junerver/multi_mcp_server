@@ -58,8 +58,9 @@ CONFIG = {
     },
     'schema': 'code_gen',           # 数据库模式名
     'table': 'open_ai_embeddings',  # 存储向量的表名
-    'chunk_size': 1000,             # 文档分块大小（字符数）
-    'overlap': 200                  # 分块重叠大小（字符数），保持上下文连续性
+    'parent_chunk_size': 3000,      # 父块大小（字符数）- 较大的语义单元
+    'child_chunk_size': 1000,        # 子块大小（字符数）- 较小的检索单元
+    'overlap': 100                  # 分块重叠大小（字符数），保持上下文连续性
 }
 
 class DocumentEmbedder:
@@ -154,27 +155,56 @@ class DocumentEmbedder:
             logger.error(f"获取向量失败: {e}")
             return None
     
-    def chunk_text(self, text: str) -> List[str]:
+    def create_parent_child_chunks(self, text: str) -> List[Tuple[str, List[str]]]:
         """
-        将长文本分块处理
+        创建父子分块结构
         
-        为了避免单次处理过长的文本导致向量化失败或效果不佳，
-        将文档按指定大小分割成多个块。同时保持块之间的重叠，
-        以保持上下文的连续性。
+        父子分块策略：
+        1. 首先将文档分割为较大的父块（语义单元）
+        2. 然后将每个父块进一步分割为较小的子块（检索单元）
+        3. 父块保持较大的上下文，子块便于精确检索
         
-        分块策略：
-        1. 如果文本长度小于等于chunk_size，直接返回
-        2. 否则按chunk_size分割，但尽量在单词边界分割
-        3. 相邻块之间保持overlap大小的重叠
+        优势：
+        - 父块保持完整的语义上下文
+        - 子块提供精确的检索粒度
+        - 支持多层次的语义检索
         
         Args:
             text: 原始文本内容
             
         Returns:
-            List[str]: 分块后的文本列表
+            List[Tuple[str, List[str]]]: 父子分块列表，每个元组包含(父块内容, 子块列表)
+        """
+        # 如果文本长度不超过父块大小，作为单个父块处理
+        if len(text) <= self.config['parent_chunk_size']:
+            # 将父块进一步分割为子块
+            child_chunks = self._split_text(text, self.config['child_chunk_size'])
+            return [(text, child_chunks)]
+        
+        # 创建父块
+        parent_chunks = self._split_text(text, self.config['parent_chunk_size'])
+        
+        # 为每个父块创建子块
+        parent_child_pairs = []
+        for parent_chunk in parent_chunks:
+            child_chunks = self._split_text(parent_chunk, self.config['child_chunk_size'])
+            parent_child_pairs.append((parent_chunk, child_chunks))
+        
+        return parent_child_pairs
+    
+    def _split_text(self, text: str, chunk_size: int) -> List[str]:
+        """
+        将文本按指定大小分割的内部方法
+        
+        Args:
+            text: 待分割的文本
+            chunk_size: 分块大小
+            
+        Returns:
+            List[str]: 分割后的文本块列表
         """
         # 如果文本长度不超过分块大小，直接返回
-        if len(text) <= self.config['chunk_size']:
+        if len(text) <= chunk_size:
             return [text]
         
         chunks = []
@@ -183,13 +213,14 @@ class DocumentEmbedder:
         # 循环分割文本
         while start < len(text):
             # 计算当前块的结束位置
-            end = start + self.config['chunk_size']
+            end = start + chunk_size
             
             # 如果不是最后一块，尝试在合适的位置分割（避免截断单词）
             if end < len(text):
                 # 向后查找合适的分割点（空格、换行符、标点符号等）
                 # 搜索范围：从end位置向前最多100个字符
-                for i in range(end, max(start + self.config['chunk_size'] - 100, start), -1):
+                search_start = max(start + chunk_size - 100, start)
+                for i in range(end, search_start, -1):
                     if text[i] in [' ', '\n', '\t', '.', '!', '?']:
                         end = i + 1  # 包含分隔符
                         break
@@ -216,18 +247,63 @@ class DocumentEmbedder:
         """
         return hashlib.md5(content.encode('utf-8')).hexdigest()
     
-    def save_embedding(self, content: str, embedding: List[float]) -> bool:
+    def save_parent_embedding(self, content: str, embedding: List[float], file_path: str, chunk_index: int) -> Optional[str]:
         """
-        保存文本内容和对应向量到数据库
-        
-        执行流程：
-        1. 根据文本内容生成唯一ID（MD5哈希）
-        2. 检查数据库中是否已存在相同内容，避免重复处理
-        3. 如果不存在，则插入新记录到pgvector表中
+        保存父块的文本内容和对应向量到数据库
         
         Args:
-            content: 文本内容
+            content: 父块文本内容
             embedding: 对应的向量数据（浮点数列表）
+            file_path: 源文件路径
+            chunk_index: 在文件中的块索引
+            
+        Returns:
+            str: 父块ID，失败时返回None
+        """
+        try:
+            cursor = self.db_conn.cursor()
+            
+            # 根据内容生成唯一ID，用于去重
+            doc_id = self.generate_id(content)
+            
+            # 检查数据库中是否已存在相同内容
+            cursor.execute(
+                f"SELECT id FROM {self.config['schema']}.{self.config['table']} WHERE id = %s",
+                (doc_id,)
+            )
+            
+            # 如果已存在，返回现有ID
+            existing = cursor.fetchone()
+            if existing:
+                logger.info(f"父块已存在，跳过: {doc_id[:8]}...")
+                return doc_id
+            
+            # 插入父块记录到数据库
+            insert_sql = f"""
+                INSERT INTO {self.config['schema']}.{self.config['table']} 
+                (id, parent_id, content, embedding, chunk_type, file_path, chunk_index) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(insert_sql, (doc_id, None, content, embedding, 'parent', file_path, chunk_index))
+            logger.info(f"父块保存成功: {doc_id[:8]}...")
+            return doc_id
+            
+        except Exception as e:
+            logger.error(f"保存父块失败: {e}")
+            return None
+    
+    def save_child_embedding(self, content: str, embedding: List[float], parent_id: str, 
+                           file_path: str, chunk_index: int) -> bool:
+        """
+        保存子块的文本内容和对应向量到数据库
+        
+        Args:
+            content: 子块文本内容
+            embedding: 对应的向量数据（浮点数列表）
+            parent_id: 父块ID
+            file_path: 源文件路径
+            chunk_index: 在父块中的子块索引
             
         Returns:
             bool: 保存是否成功
@@ -246,23 +322,22 @@ class DocumentEmbedder:
             
             # 如果已存在，跳过处理
             if cursor.fetchone():
-                logger.info(f"文档已存在，跳过: {doc_id[:8]}...")
+                logger.info(f"子块已存在，跳过: {doc_id[:8]}...")
                 return True
             
-            # 插入新记录到数据库
-            # 注意：embedding字段类型为VECTOR，psycopg会自动处理类型转换
+            # 插入子块记录到数据库
             insert_sql = f"""
                 INSERT INTO {self.config['schema']}.{self.config['table']} 
-                (id, content, embedding) 
-                VALUES (%s, %s, %s)
+                (id, parent_id, content, embedding, chunk_type, file_path, chunk_index) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             
-            cursor.execute(insert_sql, (doc_id, content, embedding))
-            logger.info(f"向量保存成功: {doc_id[:8]}...")
+            cursor.execute(insert_sql, (doc_id, parent_id, content, embedding, 'child', file_path, chunk_index))
+            logger.info(f"子块保存成功: {doc_id[:8]}...")
             return True
             
         except Exception as e:
-            logger.error(f"保存向量失败: {e}")
+            logger.error(f"保存子块失败: {e}")
             return False
     
     def read_file_content(self, file_path: Path) -> Optional[str]:
@@ -292,9 +367,9 @@ class DocumentEmbedder:
         
         完整的文件处理流程：
         1. 读取文件内容
-        2. 将内容分块处理
-        3. 对每个块进行向量化
-        4. 将文本块和向量保存到数据库
+        2. 创建父子分块结构
+        3. 为父块和子块分别生成向量
+        4. 保存到数据库（先保存父块，再保存子块）
         
         Args:
             file_path: 文档文件路径
@@ -309,28 +384,52 @@ class DocumentEmbedder:
         if not content:
             return False
         
-        # 第二步：将内容分块处理
-        chunks = self.chunk_text(content)
-        logger.info(f"文件分为 {len(chunks)} 个块")
+        # 第二步：创建父子分块结构
+        parent_child_chunks = self.create_parent_child_chunks(content)
+        logger.info(f"文件分为 {len(parent_child_chunks)} 个父块")
         
-        # 第三步：逐个处理每个文本块
-        success_count = 0
-        for i, chunk in enumerate(chunks):
-            logger.info(f"处理块 {i+1}/{len(chunks)}")
+        # 第三步：处理每个父子块组合
+        total_success = 0
+        total_chunks = 0
+        
+        for parent_idx, (parent_chunk, child_chunks) in enumerate(parent_child_chunks):
+            logger.info(f"处理父块 {parent_idx+1}/{len(parent_child_chunks)}，包含 {len(child_chunks)} 个子块")
             
-            # 获取文本块的向量表示
-            embedding = self.get_embedding(chunk)
-            if not embedding:
-                logger.error(f"块 {i+1} 向量化失败")
+            # 获取父块的向量
+            parent_embedding = self.get_embedding(parent_chunk)
+            if not parent_embedding:
+                logger.error(f"父块 {parent_idx+1} 向量化失败")
                 continue
             
-            # 将文本块和向量保存到数据库
-            if self.save_embedding(chunk, embedding):
-                success_count += 1
+            # 保存父块到数据库
+            parent_id = self.save_parent_embedding(parent_chunk, parent_embedding, str(file_path), parent_idx)
+            if not parent_id:
+                logger.error(f"父块 {parent_idx+1} 保存失败")
+                continue
             
-        logger.info(f"文件处理完成: {success_count}/{len(chunks)} 块成功")
+            # 处理该父块下的所有子块
+            child_success = 0
+            for child_idx, child_chunk in enumerate(child_chunks):
+                total_chunks += 1
+                
+                # 获取子块的向量
+                child_embedding = self.get_embedding(child_chunk)
+                if not child_embedding:
+                    logger.error(f"父块 {parent_idx+1} 的子块 {child_idx+1} 向量化失败")
+                    continue
+                
+                # 保存子块到数据库
+                if self.save_child_embedding(child_chunk, child_embedding, parent_id, str(file_path), child_idx):
+                    child_success += 1
+                    total_success += 1
+                else:
+                    logger.error(f"父块 {parent_idx+1} 的子块 {child_idx+1} 保存失败")
+            
+            logger.info(f"父块 {parent_idx+1} 处理完成: {child_success}/{len(child_chunks)} 个子块成功")
+        
+        logger.info(f"文件处理完成: {total_success}/{total_chunks} 个子块成功")
         # 只要有一个块成功处理，就认为文件处理成功
-        return success_count > 0
+        return total_success > 0
     
     def scan_documents(self) -> List[Path]:
         """
