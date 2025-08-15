@@ -794,5 +794,9 @@ def _generate_diff(original: str, modified: str, filename: str) -> str:
     return ''.join(diff)
 
 
-if __name__ == "__main__":
+def main():
+    """主函数，启动MCP服务器"""
     mcp.run(transport="streamable-http")
+
+if __name__ == "__main__":
+    main()
