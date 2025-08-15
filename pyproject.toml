@@ -9,6 +9,7 @@ dependencies = ["mcp[cli]>=1.12.4", "psycopg[binary]>=3.1.0", "requests==2.31.0"
 [project.scripts]
 embed = "embedding.embedding:main"
 fs_mcp = "fs_mcp.server:main"
+test_search = "embedding.test_embedding:main"
 
 
 [tool.uv]
