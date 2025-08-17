@@ -22,3 +22,4 @@ package = true
 
 [tool.setuptools]
 packages = ["embedding", "fs_mcp", "knowledge_mcp"]
+package-dir = { "" = "src" }

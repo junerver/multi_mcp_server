@@ -37,7 +37,7 @@ logging.basicConfig(
     level=logging.INFO,  # 设置日志级别为INFO
     format='%(asctime)s - %(levelname)s - %(message)s',  # 日志格式：时间-级别-消息
     handlers=[
-        logging.FileHandler('embedding.log'),  # 输出到文件
+        logging.FileHandler('embedding.log', encoding='utf-8'),  # 输出到文件，指定UTF-8编码
         logging.StreamHandler(sys.stdout)      # 输出到控制台
     ]
 )
