@@ -14,11 +14,11 @@ dependencies = [
 embed = "embedding.embedding:main"
 test_search = "embedding.test_embedding:main"
 fs_mcp = "fs_mcp.server:main"
-search_mcp = "fs_mcp.knowledge_server:main"
+knowledge_mcp = "knowledge_mcp.server:main"
 
 
 [tool.uv]
 package = true
 
 [tool.setuptools]
-packages = ["embedding", "fs_mcp"]
+packages = ["embedding", "fs_mcp", "knowledge_mcp"]

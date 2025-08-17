@@ -94,8 +94,7 @@ CONFIG = {
 3. 运行脚本：
 
 ```bash
-cd embedding
-python embedding.py
+uv run embed
 ```
 
 ## 日志输出
