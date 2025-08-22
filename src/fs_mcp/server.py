@@ -13,7 +13,19 @@ import stat
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+import logging
+import sys
 
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Create an MCP server
 mcp = FastMCP("FileSystem", host="0.0.0.0", port=3001)
@@ -51,7 +63,7 @@ def initialize_allowed_directories(*directories: str) -> None:
     """
     global ALLOWED_DIRECTORIES
     # 判断 .env 文件是否存在
-    env_file = Path(__file__).parent / ".env"
+    env_file = Path(__file__).parent.parent.parent / ".env"
     if env_file.exists():
         # 加载 .env 文件
         from dotenv import load_dotenv
@@ -63,13 +75,14 @@ def initialize_allowed_directories(*directories: str) -> None:
         # 使用分号分隔多个目录路径
         env_directories = [d.strip() for d in env_dirs.split(';') if d.strip()]
         directories = tuple(env_directories) + directories
+    logger.info(f"MCP FileSystem Server - Configured directories: {directories}")
     
     ALLOWED_DIRECTORIES = [os.path.abspath(d) for d in directories if os.path.exists(d)]
     if not ALLOWED_DIRECTORIES:
         # 如果没有指定目录，默认允许当前工作目录
         ALLOWED_DIRECTORIES = [os.getcwd()]
     
-    print(f"MCP FileSystem Server - Allowed directories: {ALLOWED_DIRECTORIES}")
+    logging.info(f"MCP FileSystem Server - Allowed directories: {ALLOWED_DIRECTORIES}")
 
 def validate_path(path: str) -> str:
     """
