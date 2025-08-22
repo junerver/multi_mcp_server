@@ -10,6 +10,70 @@ from urllib.parse import quote
 from pathlib import Path
 import click
 
+# Pydantic模型定义
+class FileInfo(BaseModel):
+    """文件信息结构"""
+    name: str = Field(description="文件名")
+    size: int = Field(description="文件大小（字节）")
+    type: str = Field(description="文件类型/扩展名")
+
+class ComponentMetadata(BaseModel):
+    """组件元数据信息结构"""
+    name: str = Field(description="组件名称")
+    description: str = Field(description="组件描述")
+    files: List[FileInfo] = Field(description="组件包含的文件列表")
+    dependencies: List[str] = Field(description="组件依赖项列表")
+
+class SourceFile(BaseModel):
+    """源码文件结构"""
+    filename: str = Field(description="文件名")
+    language: str = Field(description="编程语言类型")
+    content: str = Field(description="文件内容")
+
+class ComponentSource(BaseModel):
+    """组件源码信息结构"""
+    component_name: str = Field(description="组件名称")
+    source_files: List[SourceFile] = Field(description="源码文件列表")
+    found: bool = Field(description="是否找到组件")
+    error_message: Optional[str] = Field(description="错误信息（如果有）")
+
+class DemoFile(BaseModel):
+    """演示文件结构"""
+    filename: str = Field(description="演示文件名")
+    content: str = Field(description="演示代码内容")
+
+class ComponentDemo(BaseModel):
+    """组件演示代码信息结构"""
+    component_name: str = Field(description="组件名称")
+    demo_files: List[DemoFile] = Field(description="演示文件列表")
+    found: bool = Field(description="是否找到演示代码")
+    error_message: Optional[str] = Field(description="错误信息（如果有）")
+
+class ComponentList(BaseModel):
+    """组件列表信息结构"""
+    components: List[str] = Field(description="组件名称列表")
+    total_count: int = Field(description="组件总数")
+    found: bool = Field(description="是否成功获取组件列表")
+    error_message: Optional[str] = Field(description="错误信息（如果有）")
+
+class DirectoryItem(BaseModel):
+    """目录项结构"""
+    name: str = Field(description="项目名称")
+    type: str = Field(description="类型：dir（目录）或file（文件）")
+    size: Optional[int] = Field(description="文件大小（字节），目录为None")
+
+class DirectoryStructure(BaseModel):
+    """目录结构信息"""
+    path: str = Field(description="目录路径")
+    owner: str = Field(description="仓库所有者")
+    repo: str = Field(description="仓库名称")
+    branch: str = Field(description="分支名称")
+    items: List[DirectoryItem] = Field(description="目录项列表")
+    directory_count: int = Field(description="目录数量")
+    file_count: int = Field(description="文件数量")
+    found: bool = Field(description="是否成功获取目录结构")
+    error_message: Optional[str] = Field(description="错误信息（如果有）")
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -99,7 +163,7 @@ def get_directory_contents(path: str = "", branch: str = None) -> List[Dict[str,
         return []
 
 @mcp.tool()
-def get_component(componentName: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")]) -> str:
+def get_component(componentName: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")]) -> ComponentSource:
     """
     获取指定element-plus组件的源码
     """
@@ -110,26 +174,59 @@ def get_component(componentName: Annotated[str, Field(description="Name of the e
         # 首先检查组件目录是否存在
         contents = get_directory_contents(component_path)
         if not contents:
-            return f"组件 '{componentName}' 不存在或无法访问"
+            return ComponentSource(
+                component_name=componentName,
+                source_files=[],
+                found=False,
+                error_message=f"组件 '{componentName}' 不存在或无法访问"
+            )
         
         # 查找主要的源码文件
         source_files = []
         for item in contents:
             if item['type'] == 'file' and item['name'].endswith(('.vue', '.ts', '.tsx')):
                 file_content = get_file_content(item['path'])
-                source_files.append(f"## {item['name']}\n```{item['name'].split('.')[-1]}\n{file_content}\n```")
+                # 确定文件语言类型
+                extension = item['name'].split('.')[-1]
+                language_map = {
+                    'vue': 'vue',
+                    'ts': 'typescript',
+                    'tsx': 'typescript'
+                }
+                language = language_map.get(extension, extension)
+                
+                source_files.append(SourceFile(
+                    filename=item['name'],
+                    language=language,
+                    content=file_content
+                ))
         
         if source_files:
-            return f"# Element Plus 组件: {componentName}\n\n" + "\n\n".join(source_files)
+            return ComponentSource(
+                component_name=componentName,
+                source_files=source_files,
+                found=True,
+                error_message=None
+            )
         else:
-            return f"未找到组件 '{componentName}' 的源码文件"
+            return ComponentSource(
+                component_name=componentName,
+                source_files=[],
+                found=False,
+                error_message=f"未找到组件 '{componentName}' 的源码文件"
+            )
             
     except Exception as e:
         logger.error(f"获取组件源码时出错: {e}")
-        return f"获取组件 '{componentName}' 源码时出错: {str(e)}"
+        return ComponentSource(
+            component_name=componentName,
+            source_files=[],
+            found=False,
+            error_message=f"获取组件 '{componentName}' 源码时出错: {str(e)}"
+        )
 
 @mcp.tool()
-def get_component_demo(componentName: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")]) -> str:
+def get_component_demo(componentName: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")]) -> ComponentDemo:
     """
     获取指定element-plus组件的演示代码
     """
@@ -151,26 +248,49 @@ def get_component_demo(componentName: Annotated[str, Field(description="Name of 
             contents = get_directory_contents(demo_path)
         
         if not contents:
-            return f"未找到组件 '{componentName}' 的演示代码"
+            return ComponentDemo(
+                component_name=componentName,
+                demo_files=[],
+                found=False,
+                error_message=f"未找到组件 '{componentName}' 的演示代码"
+            )
         
         # 查找演示文件
         demo_files = []
         for item in contents:
             if item['type'] == 'file' and (item['name'].endswith('.vue') or 'demo' in item['name'].lower() or 'example' in item['name'].lower()):
                 file_content = get_file_content(item['path'])
-                demo_files.append(f"## {item['name']}\n```vue\n{file_content}\n```")
+                demo_files.append(DemoFile(
+                    filename=item['name'],
+                    content=file_content
+                ))
         
         if demo_files:
-            return f"# Element Plus 组件演示: {componentName}\n\n" + "\n\n".join(demo_files)
+            return ComponentDemo(
+                component_name=componentName,
+                demo_files=demo_files,
+                found=True,
+                error_message=None
+            )
         else:
-            return f"未找到组件 '{componentName}' 的演示文件"
+            return ComponentDemo(
+                component_name=componentName,
+                demo_files=[],
+                found=False,
+                error_message=f"未找到组件 '{componentName}' 的演示文件"
+            )
             
     except Exception as e:
         logger.error(f"获取组件演示代码时出错: {e}")
-        return f"获取组件 '{componentName}' 演示代码时出错: {str(e)}"
+        return ComponentDemo(
+            component_name=componentName,
+            demo_files=[],
+            found=False,
+            error_message=f"获取组件 '{componentName}' 演示代码时出错: {str(e)}"
+        )
 
 @mcp.tool()
-def list_components() -> str:
+def list_components() -> ComponentList:
     """
     列出所有可用的element-plus组件
     """
@@ -180,7 +300,12 @@ def list_components() -> str:
         contents = get_directory_contents(components_path)
         
         if not contents:
-            return "无法获取组件列表"
+            return ComponentList(
+                components=[],
+                total_count=0,
+                found=False,
+                error_message="无法获取组件列表"
+            )
         
         # 过滤出组件目录
         components = []
@@ -191,17 +316,31 @@ def list_components() -> str:
         components.sort()
         
         if components:
-            component_list = "\n".join([f"- {comp}" for comp in components])
-            return f"# Element Plus 可用组件列表\n\n{component_list}\n\n总计: {len(components)} 个组件"
+            return ComponentList(
+                components=components,
+                total_count=len(components),
+                found=True,
+                error_message=None
+            )
         else:
-            return "未找到任何组件"
+            return ComponentList(
+                components=[],
+                total_count=0,
+                found=False,
+                error_message="未找到任何组件"
+            )
             
     except Exception as e:
         logger.error(f"获取组件列表时出错: {e}")
-        return f"获取组件列表时出错: {str(e)}"
+        return ComponentList(
+            components=[],
+            total_count=0,
+            found=False,
+            error_message=f"获取组件列表时出错: {str(e)}"
+        )
 
 @mcp.tool()
-def get_component_metadata(componentName: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")]) -> str:
+def get_component_metadata(componentName: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")]) -> ComponentMetadata:
     """
     获取指定element-plus组件的元数据信息
     """
@@ -211,23 +350,25 @@ def get_component_metadata(componentName: Annotated[str, Field(description="Name
         # 获取组件目录内容
         contents = get_directory_contents(component_path)
         if not contents:
-            return f"组件 '{componentName}' 不存在"
+            return ComponentMetadata(
+                name=componentName,
+                description="",
+                files=[],
+                dependencies=[]
+            )
         
-        metadata = {
-            "name": componentName,
-            "files": [],
-            "dependencies": [],
-            "description": ""
-        }
+        files = []
+        dependencies = []
+        description = ""
         
         # 分析文件结构
         for item in contents:
             if item['type'] == 'file':
-                metadata["files"].append({
-                    "name": item['name'],
-                    "size": item.get('size', 0),
-                    "type": item['name'].split('.')[-1] if '.' in item['name'] else 'unknown'
-                })
+                files.append(FileInfo(
+                    name=item['name'],
+                    size=item.get('size', 0),
+                    type=item['name'].split('.')[-1] if '.' in item['name'] else 'unknown'
+                ))
         
         # 尝试读取package.json获取依赖信息
         package_json_path = f"{component_path}/package.json"
@@ -235,28 +376,26 @@ def get_component_metadata(componentName: Annotated[str, Field(description="Name
         if package_content and not package_content.startswith("无法获取文件内容"):
             try:
                 package_data = json.loads(package_content)
-                metadata["description"] = package_data.get("description", "")
-                metadata["dependencies"] = list(package_data.get("dependencies", {}).keys())
+                description = package_data.get("description", "")
+                dependencies = list(package_data.get("dependencies", {}).keys())
             except json.JSONDecodeError:
                 pass
         
-        # 格式化输出
-        result = f"# Element Plus 组件元数据: {componentName}\n\n"
-        result += f"**描述**: {metadata['description'] or '暂无描述'}\n\n"
-        result += f"**文件列表**:\n"
-        for file_info in metadata["files"]:
-            result += f"- {file_info['name']} ({file_info['type']}, {file_info['size']} bytes)\n"
-        
-        if metadata["dependencies"]:
-            result += f"\n**依赖项**:\n"
-            for dep in metadata["dependencies"]:
-                result += f"- {dep}\n"
-        
-        return result
+        return ComponentMetadata(
+            name=componentName,
+            description=description,
+            files=files,
+            dependencies=dependencies
+        )
         
     except Exception as e:
         logger.error(f"获取组件元数据时出错: {e}")
-        return f"获取组件 '{componentName}' 元数据时出错: {str(e)}"
+        return ComponentMetadata(
+            name=componentName,
+            description=f"获取组件 '{componentName}' 元数据时出错: {str(e)}",
+            files=[],
+            dependencies=[]
+        )
 
 @mcp.tool()
 def get_directory_structure(
@@ -264,7 +403,7 @@ def get_directory_structure(
     owner: Annotated[str, Field(description="Repository owner (default: element-plus)")] = "element-plus",
     repo: Annotated[str, Field(description="Repository name (default: element-plus)")] = "element-plus",
     branch: Annotated[str, Field(description="Branch name (default: dev)")] = "dev"
-) -> str:
+) -> DirectoryStructure:
     """
     获取element-plus仓库的目录结构
     """
@@ -281,35 +420,67 @@ def get_directory_structure(
         get_config()["element_plus_repo"] = original_config
         
         if not contents:
-            return f"无法获取目录结构: {path}"
+            return DirectoryStructure(
+                path=path,
+                owner=owner,
+                repo=repo,
+                branch=branch,
+                items=[],
+                directory_count=0,
+                file_count=0,
+                found=False,
+                error_message=f"无法获取目录结构: {path}"
+            )
         
-        # 构建目录树
-        result = f"# 目录结构: {owner}/{repo}/{path}\n\n"
-        
-        directories = []
-        files = []
+        # 构建目录项列表
+        items = []
+        directory_count = 0
+        file_count = 0
         
         for item in contents:
             if item['type'] == 'dir':
-                directories.append(f"📁 {item['name']}/")
+                directory_count += 1
+                items.append(DirectoryItem(
+                    name=item['name'],
+                    type='dir',
+                    size=None
+                ))
             else:
-                size = item.get('size', 0)
-                size_str = f" ({size} bytes)" if size > 0 else ""
-                files.append(f"📄 {item['name']}{size_str}")
+                file_count += 1
+                items.append(DirectoryItem(
+                    name=item['name'],
+                    type='file',
+                    size=item.get('size', 0)
+                ))
         
-        # 先显示目录，再显示文件
-        all_items = sorted(directories) + sorted(files)
+        # 按类型和名称排序：先目录后文件，同类型按名称排序
+        items.sort(key=lambda x: (x.type == 'file', x.name))
         
-        for item in all_items:
-            result += f"{item}\n"
-        
-        result += f"\n总计: {len(directories)} 个目录, {len(files)} 个文件"
-        
-        return result
+        return DirectoryStructure(
+            path=path,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            items=items,
+            directory_count=directory_count,
+            file_count=file_count,
+            found=True,
+            error_message=None
+        )
         
     except Exception as e:
         logger.error(f"获取目录结构时出错: {e}")
-        return f"获取目录结构时出错: {str(e)}"
+        return DirectoryStructure(
+            path=path,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            items=[],
+            directory_count=0,
+            file_count=0,
+            found=False,
+            error_message=f"获取目录结构时出错: {str(e)}"
+        )
     
 @click.command()
 @click.option(
