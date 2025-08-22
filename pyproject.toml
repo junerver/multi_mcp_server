@@ -15,11 +15,12 @@ embed = "embedding.embedding:main"
 test_search = "embedding.test_embedding:main"
 fs_mcp = "fs_mcp.server:main"
 knowledge_mcp = "knowledge_mcp.server:main"
+element_plus_mcp = "element_plus_mcp.server:main"
 
 
 [tool.uv]
 package = true
 
 [tool.setuptools]
-packages = ["embedding", "fs_mcp", "knowledge_mcp"]
+packages = ["embedding", "fs_mcp", "knowledge_mcp", "element_plus_mcp"]
 package-dir = { "" = "src" }
