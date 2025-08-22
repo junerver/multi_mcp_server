@@ -15,7 +15,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import logging
 import sys
-
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.routing import Mount
+from starlette.types import Receive, Scope, Send
 
 # 配置日志
 logging.basicConfig(
@@ -28,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Create an MCP server
-mcp = FastMCP("FileSystem", host="0.0.0.0", port=3001)
+mcp = FastMCP("FileSystem")
 
 # 添加资源支持
 @mcp.resource("file://system")
@@ -809,7 +812,22 @@ def _generate_diff(original: str, modified: str, filename: str) -> str:
 
 def main():
     """主函数，启动MCP服务器"""
-    mcp.run(transport="streamable-http")
+    # mcp.run(transport="sse")
+        # Create an ASGI application using the transport
+    starlette_app = mcp.sse_app()
+
+    # Wrap ASGI application with CORS middleware to expose Mcp-Session-Id header
+    # for browser-based clients (ensures 500 errors get proper CORS headers)
+    starlette_app = CORSMiddleware(
+        starlette_app,
+        allow_origins=["*"],  # Allow all origins - adjust as needed for production
+        allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
+        expose_headers=["Mcp-Session-Id"],
+    )
+
+    import uvicorn
+
+    uvicorn.run(starlette_app, host="0.0.0.0", port="3001")
 
 if __name__ == "__main__":
     main()
