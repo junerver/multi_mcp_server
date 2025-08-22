@@ -511,6 +511,7 @@ name = "test-mcp-server"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "mcp", extra = ["cli"] },
     { name = "psycopg", extra = ["binary"] },
     { name = "requests" },
@@ -518,6 +519,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.2.1" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.12.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1.0" },
     { name = "requests", specifier = "==2.31.0" },

@@ -8,6 +8,7 @@ import json
 import requests
 from urllib.parse import quote
 from pathlib import Path
+import click
 
 # 配置日志
 logging.basicConfig(
@@ -22,18 +23,17 @@ logger = logging.getLogger(__name__)
 # Create an MCP server
 mcp = FastMCP("ElementPlusServer", host="0.0.0.0", port=3003)
 
-CONFIG = {
-    # GitHub的Access Token
-    "github_api_key": os.getenv('GITHUB_API_KEY', ''),
-    # element-plus的仓库信息
-    "element_plus_repo": {
-        "owner": "element-plus",
-        "repo": "element-plus",
-        "branch": "dev"
-    },
-    # GitHub API基础URL
-    "github_api_base": "https://api.github.com"
-}
+def get_config() -> Dict[str, Any]:
+    """获取配置信息"""
+    return {
+        "github_api_key": os.getenv('GITHUB_API_KEY', ''),
+        "element_plus_repo": {
+            "owner": "element-plus",
+            "repo": "element-plus",
+            "branch": "dev"
+        },
+        "github_api_base": "https://api.github.com"
+    }
 
 class GitHubAPIError(Exception):
     """GitHub API错误异常类"""
@@ -45,8 +45,8 @@ def get_github_headers() -> Dict[str, str]:
         "Accept": "application/vnd.github.v3+json",
         "User-Agent": "ElementPlus-MCP-Server"
     }
-    if CONFIG["github_api_key"]:
-        headers["Authorization"] = f"token {CONFIG['github_api_key']}"
+    if get_config()["github_api_key"]:
+        headers["Authorization"] = f"token {get_config()['github_api_key']}"
     return headers
 
 def make_github_request(url: str) -> Dict[str, Any]:
@@ -62,12 +62,12 @@ def make_github_request(url: str) -> Dict[str, Any]:
 def get_file_content(path: str, branch: str = None) -> str:
     """获取GitHub仓库中文件的内容"""
     if branch is None:
-        branch = CONFIG["element_plus_repo"]["branch"]
+        branch = get_config()["element_plus_repo"]["branch"]
     
-    owner = CONFIG["element_plus_repo"]["owner"]
-    repo = CONFIG["element_plus_repo"]["repo"]
+    owner = get_config()["element_plus_repo"]["owner"]
+    repo = get_config()["element_plus_repo"]["repo"]
     
-    url = f"{CONFIG['github_api_base']}/repos/{owner}/{repo}/contents/{quote(path)}?ref={branch}"
+    url = f"{get_config()['github_api_base']}/repos/{owner}/{repo}/contents/{quote(path)}?ref={branch}"
     
     try:
         data = make_github_request(url)
@@ -82,12 +82,12 @@ def get_file_content(path: str, branch: str = None) -> str:
 def get_directory_contents(path: str = "", branch: str = None) -> List[Dict[str, Any]]:
     """获取GitHub仓库目录内容"""
     if branch is None:
-        branch = CONFIG["element_plus_repo"]["branch"]
+        branch = get_config()["element_plus_repo"]["branch"]
     
-    owner = CONFIG["element_plus_repo"]["owner"]
-    repo = CONFIG["element_plus_repo"]["repo"]
+    owner = get_config()["element_plus_repo"]["owner"]
+    repo = get_config()["element_plus_repo"]["repo"]
     
-    url = f"{CONFIG['github_api_base']}/repos/{owner}/{repo}/contents/{quote(path)}?ref={branch}"
+    url = f"{get_config()['github_api_base']}/repos/{owner}/{repo}/contents/{quote(path)}?ref={branch}"
     
     try:
         data = make_github_request(url)
@@ -270,15 +270,15 @@ def get_directory_structure(
     """
     try:
         # 临时更新配置以支持自定义仓库
-        original_config = CONFIG["element_plus_repo"].copy()
-        CONFIG["element_plus_repo"]["owner"] = owner
-        CONFIG["element_plus_repo"]["repo"] = repo
-        CONFIG["element_plus_repo"]["branch"] = branch
+        original_config = get_config()["element_plus_repo"].copy()
+        get_config()["element_plus_repo"]["owner"] = owner
+        get_config()["element_plus_repo"]["repo"] = repo
+        get_config()["element_plus_repo"]["branch"] = branch
         
         contents = get_directory_contents(path, branch)
         
         # 恢复原始配置
-        CONFIG["element_plus_repo"] = original_config
+        get_config()["element_plus_repo"] = original_config
         
         if not contents:
             return f"无法获取目录结构: {path}"
@@ -310,12 +310,28 @@ def get_directory_structure(
     except Exception as e:
         logger.error(f"获取目录结构时出错: {e}")
         return f"获取目录结构时出错: {str(e)}"
-
-def main():
+    
+@click.command()
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "sse"]),
+    default="stdio",
+    help="Transport type",
+)
+def main(transport: str):
     """主函数，启动MCP服务器"""
     logger.info("启动Element Plus MCP服务器...")
-    logger.info(f"GitHub API Token: {'已配置' if CONFIG['github_api_key'] else '未配置'}")
-    mcp.run()
+    logger.info(f"GitHub API Token: {'已配置' if get_config()['github_api_key'] else '未配置'}")
+    if transport == "sse":
+        # 加载环境变量，更新配置对象信息
+        env_file = Path(__file__).parent.parent.parent / ".env"
+        if env_file.exists():
+            # 加载 .env 文件
+            from dotenv import load_dotenv
+            load_dotenv(env_file)
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()
