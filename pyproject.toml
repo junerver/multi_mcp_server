@@ -25,3 +25,9 @@ package = true
 [tool.setuptools]
 packages = ["embedding", "fs_mcp", "knowledge_mcp", "element_plus_mcp"]
 package-dir = { "" = "src" }
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.12.10",
+]
