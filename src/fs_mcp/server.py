@@ -615,16 +615,18 @@ def _generate_diff(original: str, modified: str, filename: str) -> str:
         original_lines, modified_lines, fromfile=f"a/{filename}", tofile=f"b/{filename}", lineterm=""
     )
 
-    return ''.join(diff)
+    return "".join(diff)
+
 
 @click.command()
 @click.option(
     "--transport",
-    type=click.Choice(["stdio", "streamable","sse"]),
+    type=click.Choice(["stdio", "streamable", "sse"]),
     default="stdio",
     help="Transport type",
 )
-def main(transport: str):
+@click.option("--port", type=int, default=3001, help="Port to listen on")
+def main(transport: str, port: int):
     """主函数，启动MCP服务器"""
     def run_server(app):
         starlette_app = CORSMiddleware(
@@ -634,7 +636,7 @@ def main(transport: str):
             expose_headers=["Mcp-Session-Id"],
         )
         import uvicorn
-        uvicorn.run(starlette_app, host="0.0.0.0", port=3001)
+        uvicorn.run(starlette_app, host="0.0.0.0", port=port)
     if transport == "sse":
         run_server(mcp.sse_app())
     elif transport == "streamable":

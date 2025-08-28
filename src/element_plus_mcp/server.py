@@ -36,7 +36,7 @@ def get_api_key_from_context(ctx: Context) -> str:
     """
     从上下文中获取API密钥
     """
-    api_key = ctx.request_context.request.headers.get("X-API-Key")
+    api_key = ctx.request_context.request.headers.get("X-GITHUB-API-KEY")
     logger.info(f"获取到api_key： {api_key}")
     if not api_key:
         logger.error("请求头中未找到API密钥")
@@ -339,7 +339,8 @@ def get_directory_structure(
     default="stdio",
     help="Transport type",
 )
-def main(transport: str):
+@click.option("--port", type=int, default=3003, help="Port to listen on")
+def main(transport: str, port: int):
     """主函数，启动MCP服务器"""
     logger.info("启动Element Plus MCP服务器...")
     logger.info(f"GitHub API Token: {'已配置' if get_config()['github_api_key'] else '未配置'}")
@@ -353,7 +354,7 @@ def main(transport: str):
         )
         import uvicorn
 
-        uvicorn.run(starlette_app, host="0.0.0.0", port=3001)
+        uvicorn.run(starlette_app, host="0.0.0.0", port=port)
 
     if transport == "sse":
         run_server(mcp.sse_app())
