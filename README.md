@@ -78,28 +78,38 @@ uv sync
 
 文件服务模块，提供文件读写相关操作的mcp服务。
 
-传输协议：`sse`
-
 启动项目：
 
 ```bash
 uv run fs_mcp
 ```
 
+默认网络通信接口：3001
+
 ### element_plus_mcp
 
 element-plus的mcp服务，提供element-plus的mcp服务，用户可以通过该服务查询 el+ 中组件的详细内容。
 
-传输协议：`stdio` / `streamable-http`
-
 启动项目：
 
 ```bash
-# stdio 启动
 uv run element_plus_mcp
-# streamable-http 启动
-uv run element_plus_mcp --transport=sse
 ```
 
+默认网络通信接口：3003
 
 
+
+### mysql_mcp
+
+与 mysql 数据库通信使用的 mcp 服务，提供如下工具：
+
+- list_tables 列出全部表
+- describe_table(table_name) 创建指定表的描述信息
+- read_query(sql) 执行表查询
+
+```bash
+uv run mysql_mcp
+```
+
+默认网络通信接口：3004

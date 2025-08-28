@@ -2,7 +2,7 @@
 知识库服务
 提供基于向量搜索的知识检索功能
 """
-
+import click
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 import logging
@@ -12,6 +12,7 @@ from typing import List, Dict, Optional, Any
 
 import psycopg
 import requests
+from starlette.middleware.cors import CORSMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -330,10 +331,31 @@ def search_knowledge(request: KnowledgeQueryRequest) -> Dict[str, Any]:
         # 确保关闭数据库连接
         searcher.close_connection()
 
-
-def main():
+@click.command()
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "streamable", "sse"]),
+    default="stdio",
+    help="Transport type",
+)
+@click.option("--port", type=int, default=3002, help="Port to listen on")
+def main(transport: str, port: int):
     """主函数，启动MCP服务器"""
-    mcp.run(transport="streamable-http")
+    def run_server(app):
+        starlette_app = CORSMiddleware(
+            app,
+            allow_origins=["*"],  # Allow all origins - adjust as needed for production
+            allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
+            expose_headers=["Mcp-Session-Id"],
+        )
+        import uvicorn
+        uvicorn.run(starlette_app, host="0.0.0.0", port=port)
+    if transport == "sse":
+        run_server(mcp.sse_app())
+    elif transport == "streamable":
+        run_server(mcp.streamable_http_app())
+    else:
+        mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()
