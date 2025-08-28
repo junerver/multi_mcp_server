@@ -18,6 +18,60 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 uv sync
 ```
 
+
+
+### 在 Trae 中使用
+
+`streamable-http` 传输协议
+
+```json
+{
+  "mcpServers": {
+    "ServerName": {
+      "url": "http://localhost:3001/mcp",
+      "headers": {
+        "X-API-KEY": "application/json"
+      }
+    }
+  }
+}
+```
+
+`stdio` 传输协议
+
+```json
+{
+  "mcpServers": {
+    "FileSystem": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "E:/GitHub/All_in_Ai/test_mcp_server",
+        "run",
+        "fs_mcp"
+      ],
+      "env": {
+        "MCP_ALLOWED_DIRECTORIES": "D:\\dev;E:\\app;"
+      }
+    }
+  }
+}
+```
+
+
+
+### 在其他场景使用时的注意事项
+
+1. 跨域访问，当使用 `streamable-http` 传输协议连接远端服务时，会因为跨域访问导致连接拒绝，需要使用 CORS 中间件
+
+2. `stdio` 不能再浏览器中启动服务器，如果你直接在浏览器的客户端使用 client，且配置的服务器为一个 npx、uvx 启动的 mcp 服务，将无法启动服务器，因为浏览器环境不允许执行，错误提示如下：
+
+   ```bash
+   Module "node:child_process" has been externalized for browser compatibility. Cannot access "node:child_process.spawn" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+   ```
+
+3. 
+
 ## 项目结构
 
 ### fs_mcp

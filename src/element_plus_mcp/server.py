@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Annotated
 
 import click
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context
 from pydantic import Field
 
 from element_plus_mcp.github import get_config, get_directory_contents, get_file_content
@@ -32,19 +32,33 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("ElementPlusServer", host="0.0.0.0", port=3003)
 
 
+def get_api_key_from_context(ctx: Context) -> str:
+    """
+    从上下文中获取API密钥
+    """
+    api_key = ctx.request_context.request.headers.get("X-API-Key")
+    logger.info(f"获取到api_key： {api_key}")
+    if not api_key:
+        logger.error("请求头中未找到API密钥")
+        return ""
+    return api_key
+
+
 @mcp.tool()
 def get_component(
     component_name: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")],
+    ctx: Context,
 ) -> ComponentSource:
     """
     获取指定element-plus组件的源码
     """
+    logger.info(f"获取到header： {ctx.request_context.request.headers}")
     try:
         # element-plus组件通常在packages/components目录下
         component_path = f"packages/components/{component_name.lower()}"
-
+        api_key = get_api_key_from_context(ctx)
         # 首先检查组件目录是否存在
-        contents = get_directory_contents(component_path)
+        contents = get_directory_contents(component_path, api_key=api_key)
         if not contents:
             return ComponentSource(
                 component_name=component_name,
@@ -57,7 +71,7 @@ def get_component(
         source_files = []
         for item in contents:
             if item["type"] == "file" and item["name"].endswith((".vue", ".ts", ".tsx")):
-                file_content = get_file_content(item["path"])
+                file_content = get_file_content(item["path"], api_key=api_key)
                 # 确定文件语言类型
                 extension = item["name"].split(".")[-1]
                 language_map = {"vue": "vue", "ts": "typescript", "tsx": "typescript"}
@@ -89,7 +103,11 @@ def get_component(
 
 @mcp.tool()
 def get_component_demo(
-    component_name: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")],
+    component_name: Annotated[
+        str,
+        Field(description="Name of the element-plus component (e.g., 'avatar', 'button')"),
+    ],
+    ctx: Context,
 ) -> ComponentDemo:
     """
     获取指定element-plus组件的演示代码
@@ -97,19 +115,19 @@ def get_component_demo(
     try:
         # 查找文档中的演示代码
         docs_path = f"docs/examples/{component_name.lower()}"
-
+        api_key = get_api_key_from_context(ctx)
         # 首先尝试在docs/examples目录下查找
-        contents = get_directory_contents(docs_path)
+        contents = get_directory_contents(docs_path, api_key=api_key)
 
         if not contents:
             # 如果没有找到，尝试在packages/components下的__tests__或demo目录
             test_path = f"packages/components/{component_name.lower()}/__tests__"
-            contents = get_directory_contents(test_path)
+            contents = get_directory_contents(test_path, api_key=api_key)
 
         if not contents:
             # 尝试查找demo目录
             demo_path = f"packages/components/{component_name.lower()}/demo"
-            contents = get_directory_contents(demo_path)
+            contents = get_directory_contents(demo_path, api_key=api_key)
 
         if not contents:
             return ComponentDemo(
@@ -125,7 +143,7 @@ def get_component_demo(
             if item["type"] == "file" and (
                 item["name"].endswith(".vue") or "demo" in item["name"].lower() or "example" in item["name"].lower()
             ):
-                file_content = get_file_content(item["path"])
+                file_content = get_file_content(item["path"], api_key=api_key)
                 demo_files.append(DemoFile(filename=item["name"], content=file_content))
 
         if demo_files:
@@ -149,14 +167,15 @@ def get_component_demo(
 
 
 @mcp.tool()
-def list_components() -> ComponentList:
+def list_components(ctx: Context) -> ComponentList:
     """
     列出所有可用的element-plus组件
     """
     try:
         # 获取packages/components目录下的所有组件
         components_path = "packages/components"
-        contents = get_directory_contents(components_path)
+        api_key = get_api_key_from_context(ctx)
+        contents = get_directory_contents(components_path, api_key=api_key)
 
         if not contents:
             return ComponentList(components=[], total_count=0, found=False, error_message="无法获取组件列表")
@@ -181,16 +200,17 @@ def list_components() -> ComponentList:
 
 @mcp.tool()
 def get_component_metadata(
-    component_name: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')")],
+    component_name: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')"),],
+        ctx: Context,
 ) -> ComponentMetadata:
     """
     获取指定element-plus组件的元数据信息
     """
     try:
         component_path = f"packages/components/{component_name.lower()}"
-
+        api_key = get_api_key_from_context(ctx)
         # 获取组件目录内容
-        contents = get_directory_contents(component_path)
+        contents = get_directory_contents(component_path, api_key=api_key)
         if not contents:
             return ComponentMetadata(name=component_name, description="", files=[], dependencies=[])
 
@@ -211,7 +231,7 @@ def get_component_metadata(
 
         # 尝试读取package.json获取依赖信息
         package_json_path = f"{component_path}/package.json"
-        package_content = get_file_content(package_json_path)
+        package_content = get_file_content(package_json_path, api_key=api_key)
         if package_content and not package_content.startswith("无法获取文件内容"):
             try:
                 package_data = json.loads(package_content)
@@ -234,12 +254,11 @@ def get_component_metadata(
 
 @mcp.tool()
 def get_directory_structure(
-    path: Annotated[
-        str, Field(description="Path within the repository (default: packages/components)")
-    ] = "packages/components",
-    owner: Annotated[str, Field(description="Repository owner (default: element-plus)")] = "element-plus",
-    repo: Annotated[str, Field(description="Repository name (default: element-plus)")] = "element-plus",
-    branch: Annotated[str, Field(description="Branch name (default: dev)")] = "dev",
+    path: Annotated[str, Field(description="Path within the repository (default: packages/components)")],
+    owner: Annotated[str, Field(description="Repository owner (default: element-plus)")],
+    repo: Annotated[str, Field(description="Repository name (default: element-plus)")],
+    branch: Annotated[str, Field(description="Branch name (default: dev)")],
+    ctx: Context,
 ) -> DirectoryStructure:
     """
     获取element-plus仓库的目录结构
@@ -251,7 +270,8 @@ def get_directory_structure(
         get_config()["element_plus_repo"]["repo"] = repo
         get_config()["element_plus_repo"]["branch"] = branch
 
-        contents = get_directory_contents(path, branch)
+        api_key = get_api_key_from_context(ctx)
+        contents = get_directory_contents(path, branch, api_key=api_key)
 
         # 恢复原始配置
         get_config()["element_plus_repo"] = original_config
@@ -311,10 +331,11 @@ def get_directory_structure(
             error_message=f"获取目录结构时出错: {str(e)}",
         )
 
+
 @click.command()
 @click.option(
     "--transport",
-    type=click.Choice(["stdio", "streamable","sse"]),
+    type=click.Choice(["stdio", "streamable", "sse"]),
     default="stdio",
     help="Transport type",
 )
@@ -322,13 +343,8 @@ def main(transport: str):
     """主函数，启动MCP服务器"""
     logger.info("启动Element Plus MCP服务器...")
     logger.info(f"GitHub API Token: {'已配置' if get_config()['github_api_key'] else '未配置'}")
+
     def run_server(app):
-        # 加载环境变量，更新配置对象信息
-        env_file = Path(__file__).parent.parent.parent / ".env"
-        if env_file.exists():
-            # 加载 .env 文件
-            from dotenv import load_dotenv
-            load_dotenv(env_file)
         starlette_app = CORSMiddleware(
             app,
             allow_origins=["*"],  # Allow all origins - adjust as needed for production
@@ -336,12 +352,21 @@ def main(transport: str):
             expose_headers=["Mcp-Session-Id"],
         )
         import uvicorn
+
         uvicorn.run(starlette_app, host="0.0.0.0", port=3001)
+
     if transport == "sse":
         run_server(mcp.sse_app())
     elif transport == "streamable":
         run_server(mcp.streamable_http_app())
     else:
+        # 加载环境变量，更新配置对象信息
+        env_file = Path(__file__).parent.parent.parent / ".env"
+        if env_file.exists():
+            # 加载 .env 文件
+            from dotenv import load_dotenv
+
+            load_dotenv(env_file)
         mcp.run(transport="stdio")
 
 if __name__ == "__main__":
