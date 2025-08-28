@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+import click
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -616,22 +617,30 @@ def _generate_diff(original: str, modified: str, filename: str) -> str:
 
     return ''.join(diff)
 
-
-def main():
+@click.command()
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "streamable","sse"]),
+    default="stdio",
+    help="Transport type",
+)
+def main(transport: str):
     """主函数，启动MCP服务器"""
-    # 常规fastmcp直接启动sse协议
-    # mcp.run(transport="sse")
-
-    # uvicorn 启动，通过 CORS 中间件处理，这里可以使用 sse_app 或者 streamable_http_app
-    starlette_app = mcp.sse_app()
-    starlette_app = CORSMiddleware(
-        starlette_app,
-        allow_origins=["*"],  # Allow all origins - adjust as needed for production
-        allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
-        expose_headers=["Mcp-Session-Id"],
-    )
-    import uvicorn
-    uvicorn.run(starlette_app, host="0.0.0.0", port=3001)
+    def run_server(app):
+        starlette_app = CORSMiddleware(
+            app,
+            allow_origins=["*"],  # Allow all origins - adjust as needed for production
+            allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
+            expose_headers=["Mcp-Session-Id"],
+        )
+        import uvicorn
+        uvicorn.run(starlette_app, host="0.0.0.0", port=3001)
+    if transport == "sse":
+        run_server(mcp.sse_app())
+    elif transport == "streamable":
+        run_server(mcp.streamable_http_app())
+    else:
+        mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()

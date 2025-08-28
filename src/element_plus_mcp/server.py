@@ -20,6 +20,7 @@ from element_plus_mcp.models import (
     ComponentSource,
     SourceFile,
 )
+from starlette.middleware.cors import CORSMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -310,11 +311,10 @@ def get_directory_structure(
             error_message=f"获取目录结构时出错: {str(e)}",
         )
 
-
 @click.command()
 @click.option(
     "--transport",
-    type=click.Choice(["stdio", "sse"]),
+    type=click.Choice(["stdio", "streamable","sse"]),
     default="stdio",
     help="Transport type",
 )
@@ -322,14 +322,25 @@ def main(transport: str):
     """主函数，启动MCP服务器"""
     logger.info("启动Element Plus MCP服务器...")
     logger.info(f"GitHub API Token: {'已配置' if get_config()['github_api_key'] else '未配置'}")
-    if transport == "sse":
+    def run_server(app):
         # 加载环境变量，更新配置对象信息
         env_file = Path(__file__).parent.parent.parent / ".env"
         if env_file.exists():
             # 加载 .env 文件
             from dotenv import load_dotenv
             load_dotenv(env_file)
-        mcp.run(transport="streamable-http")
+        starlette_app = CORSMiddleware(
+            app,
+            allow_origins=["*"],  # Allow all origins - adjust as needed for production
+            allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
+            expose_headers=["Mcp-Session-Id"],
+        )
+        import uvicorn
+        uvicorn.run(starlette_app, host="0.0.0.0", port=3001)
+    if transport == "sse":
+        run_server(mcp.sse_app())
+    elif transport == "streamable":
+        run_server(mcp.streamable_http_app())
     else:
         mcp.run(transport="stdio")
 
