@@ -567,6 +567,19 @@ def edit_file(
     except Exception as e:
         return {"content": [{"type": "text", "text": f"Error editing file: {e}"}]}
 
+@mcp.tool()
+def delete_file(path: str = Field(..., description="要删除的文件路径")) -> Dict[str, Any]:
+    """
+    删除指定的文件，【危险操作】请谨慎使用。
+    """
+    try:
+        validated_path = validate_path(path)
+        if not os.path.exists(validated_path):
+            return {"content": [{"type": "text", "text": f"Error: File '{path}' does not exist"}]}
+        os.remove(validated_path)
+        return {"content": [{"type": "text", "text": f"File deleted successfully: {path}"}]}
+    except Exception as e:
+        return {"content": [{"type": "text", "text": f"Error deleting file: {e}"}]}
 
 def _detect_indent_style(lines: List[str]) -> str:
     """
