@@ -661,11 +661,12 @@ def compress_to_zip(
         if not os.access(validated_output_dir, os.W_OK):
             return {"content": [{"type": "text", "text": f"Error: No write permission for output directory '{validated_output_dir}'"}]}
         
-        # 生成zip文件名
-        base_name = os.path.basename(validated_path)
+        # 生成zip文件名，获取实际的大小写名称
+        actual_name = _get_actual_case_name(validated_path)
+        base_name = actual_name
         if os.path.isfile(validated_path):
             # 对于文件，移除扩展名
-            base_name = os.path.splitext(base_name)[0]
+            base_name = os.path.splitext(actual_name)[0]
         
         zip_filename = f"{base_name}.zip"
         zip_path = os.path.join(validated_output_dir, zip_filename)
@@ -687,7 +688,7 @@ def compress_to_zip(
                 if _should_exclude_file(validated_path, exclude_patterns):
                     return {"content": [{"type": "text", "text": f"File '{path}' matches exclude pattern and was skipped"}]}
                 
-                arcname = os.path.basename(validated_path)
+                arcname = _get_actual_case_name(validated_path)
                 zipf.write(validated_path, arcname)
                 file_count = 1
                 dir_count = 0
@@ -697,7 +698,7 @@ def compress_to_zip(
                 dir_count = 0
                 empty_dirs = set()
                 processed_dirs = set()
-                dir_name = os.path.basename(validated_path)
+                dir_name = _get_actual_case_name(validated_path)
                 
                 for root, dirs, files in os.walk(validated_path, followlinks=follow_symlinks):
                     # 检查符号链接循环
@@ -723,8 +724,8 @@ def compress_to_zip(
                         if _should_exclude_file(file_path, exclude_patterns):
                             continue
                         
-                        # 计算相对于源目录的路径
-                        rel_path = os.path.relpath(file_path, validated_path)
+                        # 计算相对于源目录的路径，保持实际的大小写
+                        rel_path = _get_relative_path_with_case(file_path, validated_path)
                         # 在zip中的路径应该以目录名开头
                         arcname = os.path.join(dir_name, rel_path)
                         
@@ -753,8 +754,8 @@ def compress_to_zip(
                 # 为空目录创建条目
                 for empty_dir in empty_dirs:
                     if os.path.exists(empty_dir) and not os.listdir(empty_dir):
-                        rel_path = os.path.relpath(empty_dir, validated_path)
-                        arcname = os.path.join(os.path.basename(validated_path), rel_path) + '/'
+                        rel_path = _get_relative_path_with_case(empty_dir, validated_path)
+                        arcname = os.path.join(dir_name, rel_path) + '/'
                         zipf.writestr(arcname, '')
         
         # 获取zip文件大小
@@ -831,6 +832,65 @@ def _get_line_indent(line: str) -> str:
         else:
             break
     return indent
+
+
+def _get_actual_case_name(path: str) -> str:
+    """
+    获取文件系统中文件/目录的实际大小写名称。
+    在Windows系统中，文件系统大小写不敏感，但实际存储时保持原始大小写。
+    """
+    try:
+        # 获取父目录
+        parent_dir = os.path.dirname(path)
+        target_name = os.path.basename(path)
+        
+        if not parent_dir or not os.path.exists(parent_dir):
+            return os.path.basename(path)
+        
+        # 列出父目录中的所有项目
+        for item in os.listdir(parent_dir):
+            # 大小写不敏感比较
+            if item.lower() == target_name.lower():
+                return item
+        
+        # 如果没找到，返回原始名称
+        return os.path.basename(path)
+    except (OSError, IOError):
+        return os.path.basename(path)
+
+
+def _get_relative_path_with_case(file_path: str, base_path: str) -> str:
+    """
+    获取保持原始大小写的相对路径。
+    逐级获取每个目录的实际大小写名称。
+    """
+    try:
+        # 将路径标准化
+        file_path = os.path.abspath(file_path)
+        base_path = os.path.abspath(base_path)
+        
+        # 获取相对路径的各个部分
+        rel_path = os.path.relpath(file_path, base_path)
+        
+        # 如果是当前目录，直接返回文件名
+        if rel_path == '.' or rel_path == os.path.basename(file_path):
+            return _get_actual_case_name(file_path)
+        
+        # 分割路径并重建
+        path_parts = []
+        current_path = base_path
+        
+        # 逐级构建路径，获取每一级的实际大小写
+        for part in rel_path.split(os.sep):
+            current_path = os.path.join(current_path, part)
+            actual_name = _get_actual_case_name(current_path)
+            path_parts.append(actual_name)
+        
+        return os.path.join(*path_parts) if path_parts else rel_path
+        
+    except (OSError, IOError, ValueError):
+        # 出现错误时，返回原始相对路径
+        return os.path.relpath(file_path, base_path)
 
 
 def _generate_diff(original: str, modified: str, filename: str) -> str:
