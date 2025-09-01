@@ -619,6 +619,7 @@ def delete_file(path: str = Field(..., description="要删除的文件路径")) 
 @mcp.tool()
 def compress_to_zip(
     path: str = Field(..., description="要压缩的文件或目录路径"),
+    output_zip_name: Optional[str] = Field(default=None, description="输出zip文件的名称，默认为源文件/目录的名称"),
     output_dir: Optional[str] = Field(default=None, description="输出zip文件的目录，默认为源文件/目录的父目录"),
     compression_level: int = Field(default=6, description="压缩级别 (0-9)，0为无压缩，9为最高压缩", ge=0, le=9),
     follow_symlinks: bool = Field(default=False, description="是否跟随符号链接"),
@@ -661,12 +662,20 @@ def compress_to_zip(
         if not os.access(validated_output_dir, os.W_OK):
             return {"content": [{"type": "text", "text": f"Error: No write permission for output directory '{validated_output_dir}'"}]}
         
-        # 生成zip文件名，获取实际的大小写名称
-        actual_name = _get_actual_case_name(validated_path)
-        base_name = actual_name
-        if os.path.isfile(validated_path):
-            # 对于文件，移除扩展名
-            base_name = os.path.splitext(actual_name)[0]
+        # 生成zip文件名
+        if output_zip_name:
+            # 使用用户指定的名称
+            base_name = output_zip_name
+            # 确保没有.zip扩展名，避免重复
+            if base_name.lower().endswith('.zip'):
+                base_name = base_name[:-4]
+        else:
+            # 使用实际的大小写名称
+            actual_name = _get_actual_case_name(validated_path)
+            base_name = actual_name
+            if os.path.isfile(validated_path):
+                # 对于文件，移除扩展名
+                base_name = os.path.splitext(actual_name)[0]
         
         zip_filename = f"{base_name}.zip"
         zip_path = os.path.join(validated_output_dir, zip_filename)

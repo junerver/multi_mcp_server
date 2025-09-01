@@ -120,6 +120,12 @@ uv run template_mcp
 
 ## 调试
 
+可以使用下面的命令启动调试服务：
+
 ```bash
 npx @modelcontextprotocol/inspector uv --directory E:/GitHub/All_in_Ai/test_mcp_server run fs_mcp
 ```
+
+需要明确指出 `--directory` 参数，否则会报错。
+
+启动后，访问带 token 自动填充的 url 打开，然后选择实际使用的通讯协议，点击 connect 按钮，即可调试。
