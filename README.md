@@ -1,12 +1,10 @@
-这是一个MCP服务测试项目，包含了文件服务、知识库服务等。
-
-
+这是一个 MCP 服务测试项目，包含了文件服务、知识库服务等。
 
 ## 使用项目
 
 项目使用 uv 包管理工具，需要先安装 uv：
 
-windows安装：
+windows 安装：
 
 ```bash
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -17,8 +15,6 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```bash
 uv sync
 ```
-
-
 
 ### 在 Trae 中使用
 
@@ -58,8 +54,6 @@ uv sync
 }
 ```
 
-
-
 ### 在其他场景使用时的注意事项
 
 1. 跨域访问，当使用 `streamable-http` 传输协议连接远端服务时，会因为跨域访问导致连接拒绝，需要使用 CORS 中间件
@@ -70,13 +64,13 @@ uv sync
    Module "node:child_process" has been externalized for browser compatibility. Cannot access "node:child_process.spawn" in client code. See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
    ```
 
-3. 
+3.
 
 ## 项目结构
 
 ### fs_mcp
 
-文件服务模块，提供文件读写相关操作的mcp服务。
+文件服务模块，提供文件读写相关操作的 mcp 服务。
 
 启动项目：
 
@@ -88,7 +82,7 @@ uv run fs_mcp
 
 ### element_plus_mcp
 
-element-plus的mcp服务，提供element-plus的mcp服务，用户可以通过该服务查询 el+ 中组件的详细内容。
+element-plus 的 mcp 服务，提供 element-plus 的 mcp 服务，用户可以通过该服务查询 el+ 中组件的详细内容。
 
 启动项目：
 
@@ -97,8 +91,6 @@ uv run element_plus_mcp
 ```
 
 默认网络通信接口：3003
-
-
 
 ### mysql_mcp
 
@@ -116,7 +108,7 @@ uv run mysql_mcp
 
 ### template_mcp
 
-模板服务模块，提供模板相关操作的mcp服务。
+模板服务模块，提供模板相关操作的 mcp 服务。
 
 启动项目：
 
@@ -125,3 +117,9 @@ uv run template_mcp
 ```
 
 默认网络通信接口：3005
+
+## 调试
+
+```bash
+npx @modelcontextprotocol/inspector uv --directory E:/GitHub/All_in_Ai/test_mcp_server run fs_mcp
+```

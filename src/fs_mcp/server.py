@@ -10,6 +10,7 @@ import shutil
 import stat
 import sys
 import time
+import zipfile
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -453,6 +454,39 @@ def _format_size(size_bytes: int) -> str:
     return f"{size_bytes:.1f} {size_names[i]}"
 
 
+def _should_exclude_file(file_path: str, exclude_patterns: Optional[List[str]]) -> bool:
+    """
+    检查文件是否应该被排除。
+    支持通配符模式匹配。
+    
+    Args:
+        file_path: 文件路径
+        exclude_patterns: 排除模式列表
+    
+    Returns:
+        bool: 如果文件应该被排除则返回True
+    """
+    import fnmatch
+    
+    if not exclude_patterns:
+        return False
+    
+    file_name = os.path.basename(file_path)
+    
+    for pattern in exclude_patterns:
+        # 支持文件名匹配
+        if fnmatch.fnmatch(file_name, pattern):
+            return True
+        # 支持完整路径匹配
+        if fnmatch.fnmatch(file_path, pattern):
+            return True
+        # 支持相对路径匹配
+        if pattern in file_path:
+            return True
+    
+    return False
+
+
 class EditOperation(BaseModel):
     old_text: str = Field(..., description="要搜索的文本（可以是子字符串）")
     new_text: str = Field(..., description="要替换的文本")
@@ -580,6 +614,190 @@ def delete_file(path: str = Field(..., description="要删除的文件路径")) 
         return {"content": [{"type": "text", "text": f"File deleted successfully: {path}"}]}
     except Exception as e:
         return {"content": [{"type": "text", "text": f"Error deleting file: {e}"}]}
+
+
+@mcp.tool()
+def compress_to_zip(
+    path: str = Field(..., description="要压缩的文件或目录路径"),
+    output_dir: Optional[str] = Field(default=None, description="输出zip文件的目录，默认为源文件/目录的父目录"),
+    compression_level: int = Field(default=6, description="压缩级别 (0-9)，0为无压缩，9为最高压缩", ge=0, le=9),
+    follow_symlinks: bool = Field(default=False, description="是否跟随符号链接"),
+    exclude_patterns: Optional[List[str]] = Field(default=None, description="要排除的文件模式列表（支持通配符）")
+) -> Dict[str, Any]:
+    """
+    将文件或目录压缩为zip包。
+    支持自定义压缩级别、符号链接处理和文件排除模式。
+    如果输入是文件，则创建包含该文件的zip包。
+    如果输入是目录，则创建包含该目录所有内容的zip包。
+    zip包的名称基于源文件或目录的名称。
+    """
+    import fnmatch
+    
+    try:
+        validated_path = validate_path(path)
+        
+        if not os.path.exists(validated_path):
+            return {"content": [{"type": "text", "text": f"Error: Path '{path}' does not exist"}]}
+        
+        # 检查文件/目录权限
+        if not os.access(validated_path, os.R_OK):
+            return {"content": [{"type": "text", "text": f"Error: No read permission for '{path}'"}]}
+        
+        # 确定输出目录
+        if output_dir:
+            # 确保输出目录路径存在或可以创建
+            try:
+                output_dir_abs = os.path.abspath(output_dir)
+                if not os.path.exists(output_dir_abs):
+                    os.makedirs(output_dir_abs, exist_ok=True)
+                validated_output_dir = validate_path(output_dir_abs)
+            except (OSError, PermissionError) as e:
+                return {"content": [{"type": "text", "text": f"Error: Cannot create output directory '{output_dir}': {e}"}]}
+        else:
+            validated_output_dir = os.path.dirname(validated_path)
+        
+        # 确保输出目录存在且可写
+        os.makedirs(validated_output_dir, exist_ok=True)
+        if not os.access(validated_output_dir, os.W_OK):
+            return {"content": [{"type": "text", "text": f"Error: No write permission for output directory '{validated_output_dir}'"}]}
+        
+        # 生成zip文件名
+        base_name = os.path.basename(validated_path)
+        if os.path.isfile(validated_path):
+            # 对于文件，移除扩展名
+            base_name = os.path.splitext(base_name)[0]
+        
+        zip_filename = f"{base_name}.zip"
+        zip_path = os.path.join(validated_output_dir, zip_filename)
+        
+        # 如果zip文件已存在，添加数字后缀
+        counter = 1
+        while os.path.exists(zip_path):
+            zip_filename = f"{base_name}_{counter}.zip"
+            zip_path = os.path.join(validated_output_dir, zip_filename)
+            counter += 1
+        
+        # 设置压缩级别
+        compression_method = zipfile.ZIP_DEFLATED if compression_level > 0 else zipfile.ZIP_STORED
+        
+        # 创建zip文件
+        with zipfile.ZipFile(zip_path, 'w', compression_method, compresslevel=compression_level) as zipf:
+            if os.path.isfile(validated_path):
+                # 压缩单个文件
+                if _should_exclude_file(validated_path, exclude_patterns):
+                    return {"content": [{"type": "text", "text": f"File '{path}' matches exclude pattern and was skipped"}]}
+                
+                arcname = os.path.basename(validated_path)
+                zipf.write(validated_path, arcname)
+                file_count = 1
+                dir_count = 0
+            else:
+                # 压缩目录
+                file_count = 0
+                dir_count = 0
+                empty_dirs = set()
+                processed_dirs = set()
+                dir_name = os.path.basename(validated_path)
+                
+                for root, dirs, files in os.walk(validated_path, followlinks=follow_symlinks):
+                    # 检查符号链接循环
+                    if not follow_symlinks and os.path.islink(root):
+                        continue
+                    
+                    current_dir_has_files = False
+                    
+                    # 处理文件
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        
+                        # 检查符号链接
+                        if os.path.islink(file_path) and not follow_symlinks:
+                            continue
+                        
+                        # 检查文件权限
+                        if not os.access(file_path, os.R_OK):
+                            logger.warning(f"Skipping file due to permission: {file_path}")
+                            continue
+                        
+                        # 检查排除模式
+                        if _should_exclude_file(file_path, exclude_patterns):
+                            continue
+                        
+                        # 计算相对于源目录的路径
+                        rel_path = os.path.relpath(file_path, validated_path)
+                        # 在zip中的路径应该以目录名开头
+                        arcname = os.path.join(dir_name, rel_path)
+                        
+                        try:
+                            zipf.write(file_path, arcname)
+                            file_count += 1
+                            current_dir_has_files = True
+                        except (OSError, IOError) as e:
+                            logger.warning(f"Failed to compress file {file_path}: {e}")
+                    
+                    # 记录目录状态
+                    processed_dirs.add(root)
+                    if not current_dir_has_files and not any(os.path.join(root, d) in processed_dirs for d in dirs):
+                        empty_dirs.add(root)
+                    
+                    # 处理目录
+                    for dir_name_item in dirs:
+                        dir_path = os.path.join(root, dir_name_item)
+                        
+                        # 检查符号链接
+                        if os.path.islink(dir_path) and not follow_symlinks:
+                            continue
+                        
+                        dir_count += 1
+                
+                # 为空目录创建条目
+                for empty_dir in empty_dirs:
+                    if os.path.exists(empty_dir) and not os.listdir(empty_dir):
+                        rel_path = os.path.relpath(empty_dir, validated_path)
+                        arcname = os.path.join(os.path.basename(validated_path), rel_path) + '/'
+                        zipf.writestr(arcname, '')
+        
+        # 获取zip文件大小
+        zip_size = os.path.getsize(zip_path)
+        
+        # 计算压缩率
+        if os.path.isfile(validated_path):
+            original_size = os.path.getsize(validated_path)
+        else:
+            original_size = sum(os.path.getsize(os.path.join(root, file)) 
+                              for root, dirs, files in os.walk(validated_path) 
+                              for file in files if os.path.exists(os.path.join(root, file)))
+        
+        compression_ratio = ((original_size - zip_size) / original_size * 100) if original_size > 0 else 0
+        
+        result_text = f"压缩完成！\n"
+        result_text += f"源路径: {path}\n"
+        result_text += f"zip文件: {zip_path}\n"
+        result_text += f"压缩了 {file_count} 个文件"
+        if not os.path.isfile(validated_path):
+            result_text += f"，{dir_count} 个目录"
+        result_text += f"\n原始大小: {_format_size(original_size)}\n"
+        result_text += f"压缩后大小: {_format_size(zip_size)}\n"
+        result_text += f"压缩率: {compression_ratio:.1f}%\n"
+        result_text += f"压缩级别: {compression_level}"
+        
+        return {
+            "content": [
+                {
+                    "type": "text", 
+                    "text": result_text
+                }
+            ],
+            "zip_path": zip_path,
+            "file_count": file_count,
+            "original_size": original_size,
+            "compressed_size": zip_size,
+            "compression_ratio": compression_ratio
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating zip file: {e}")
+        return {"content": [{"type": "text", "text": f"Error creating zip file: {e}"}]}
 
 def _detect_indent_style(lines: List[str]) -> str:
     """
