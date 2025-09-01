@@ -1,0 +1,25 @@
+-- 菜单 SQL
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理', '3', '1', 'prompt', 'system/prompt/index', 1, 0, 'C', '0', '0', 'system:prompt:list', '#', 'admin', sysdate(), '', null, 'AI提示词内容管理菜单');
+
+-- 按钮父菜单ID
+SELECT @parentId := LAST_INSERT_ID();
+
+-- 按钮 SQL
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理查询', @parentId, '1',  '#', '', 1, 0, 'F', '0', '0', 'system:prompt:query',        '#', 'admin', sysdate(), '', null, '');
+
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理新增', @parentId, '2',  '#', '', 1, 0, 'F', '0', '0', 'system:prompt:add',          '#', 'admin', sysdate(), '', null, '');
+
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理修改', @parentId, '3',  '#', '', 1, 0, 'F', '0', '0', 'system:prompt:edit',         '#', 'admin', sysdate(), '', null, '');
+
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理删除', @parentId, '4',  '#', '', 1, 0, 'F', '0', '0', 'system:prompt:remove',       '#', 'admin', sysdate(), '', null, '');
+
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理批量删除', @parentId, '5',  '#', '', 1, 0, 'F', '0', '0', 'system:prompt:batchRemove',       '#', 'admin', sysdate(), '', null, '');
+
+insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+values('AI提示词内容管理导出', @parentId, '6',  '#', '', 1, 0, 'F', '0', '0', 'system:prompt:export',       '#', 'admin', sysdate(), '', null, '');

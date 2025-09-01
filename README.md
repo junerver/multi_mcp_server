@@ -113,3 +113,15 @@ uv run mysql_mcp
 ```
 
 默认网络通信接口：3004
+
+### template_mcp
+
+模板服务模块，提供模板相关操作的mcp服务。
+
+启动项目：
+
+```bash
+uv run template_mcp
+```
+
+默认网络通信接口：3005

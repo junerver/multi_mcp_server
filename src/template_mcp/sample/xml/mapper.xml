@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jkr.project.system.mapper.PromptMapper">
+
+    <resultMap type="com.jkr.project.system.domain.Prompt" id="PromptResult">
+            <result property="id"    column="id"    />
+            <result property="content"    column="content"    />
+            <result property="enabled"    column="enabled"    />
+            <result property="createBy"    column="create_by"    />
+            <result property="createTime"    column="create_time"    />
+            <result property="updateBy"    column="update_by"    />
+            <result property="updateTime"    column="update_time"    />
+            <result property="delFlag"    column="del_flag"    />
+            <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectPromptVo">
+        select id, content, enabled, create_by, create_time, update_by, update_time, del_flag, remark from ai_prompt
+    </sql>
+
+    <select id="selectPromptList" parameterType="com.jkr.project.system.domain.Prompt" resultMap="PromptResult">
+        <include refid="selectPromptVo"/>
+        <where>
+                        <if test="content != null  and content != ''"> and content = #{content}</if>
+                        <if test="enabled != null "> and enabled = #{enabled}</if>
+            and del_flag = '1'
+        </where>
+    </select>
+
+    <select id="selectPromptById" parameterType="Long" resultMap="PromptResult">
+            <include refid="selectPromptVo"/>
+            where id = #{id}
+    </select>
+
+    <insert id="insertPrompt" parameterType="com.jkr.project.system.domain.Prompt">
+        insert into ai_prompt
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+                    <if test="id != null">id,</if>
+                    <if test="content != null">content,</if>
+                    <if test="enabled != null">enabled,</if>
+                    <if test="createBy != null">create_by,</if>
+                    <if test="createTime != null">create_time,</if>
+                    <if test="updateBy != null">update_by,</if>
+                    <if test="updateTime != null">update_time,</if>
+                    <if test="delFlag != null and delFlag != ''">del_flag,</if>
+                    <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+                    <if test="id != null">#{id},</if>
+                    <if test="content != null">#{content},</if>
+                    <if test="enabled != null">#{enabled},</if>
+                    <if test="createBy != null">#{createBy},</if>
+                    <if test="createTime != null">#{createTime},</if>
+                    <if test="updateBy != null">#{updateBy},</if>
+                    <if test="updateTime != null">#{updateTime},</if>
+                    <if test="delFlag != null and delFlag != ''">#{delFlag},</if>
+                    <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updatePrompt" parameterType="com.jkr.project.system.domain.Prompt">
+        update ai_prompt
+        <trim prefix="SET" suffixOverrides=",">
+                    <if test="content != null">content = #{content},</if>
+                    <if test="enabled != null">enabled = #{enabled},</if>
+                    <if test="createBy != null">create_by = #{createBy},</if>
+                    <if test="createTime != null">create_time = #{createTime},</if>
+                    <if test="updateBy != null">update_by = #{updateBy},</if>
+                    <if test="updateTime != null">update_time = #{updateTime},</if>
+                    <if test="delFlag != null and delFlag != ''">del_flag = #{delFlag},</if>
+                    <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <update id="logicRemoveByIds" parameterType="String">
+        update ai_prompt set del_flag = REPLACE(unix_timestamp(current_timestamp(3)),'.','') where id in
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <update id="logicRemoveById" parameterType="Long">
+        update ai_prompt set del_flag = REPLACE(unix_timestamp(current_timestamp(3)),'.','') where id = #{id}
+    </update>
+
+    <delete id="deletePromptById" parameterType="Long">
+        delete from ai_prompt where id = #{id}
+    </delete>
+
+    <delete id="deletePromptByIds" parameterType="String">
+        delete from ai_prompt where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
