@@ -98,6 +98,11 @@ TEMPLATE_FILES = {
         "description": "Vue3树形页面组件模板",
         "category": "前端代码"
     },
+    "vue_v3_form": {
+        "path": "vue/v3/Form.vue.vm",
+        "description": "Vue3表单组件模板",
+        "category": "前端代码"
+    },
     # 数据库脚本模板
     "sql": {
         "path": "sql/sql.vm",
