@@ -12,6 +12,7 @@ from mysql.connector import connect, Error
 from pydantic import Field
 from starlette.middleware.cors import CORSMiddleware
 
+from common.mcp_cli import with_mcp_options, run_mcp_server
 from mysql_mcp.cache import Cache
 from mysql_mcp.types import MysqlDatabaseConfig
 
@@ -198,45 +199,10 @@ def prepare_template_content(
     pass
 
 
-@click.command()
-@click.option("--port", default=3004, help="Port to listen on")
-@click.option(
-    "--transport",
-    type=click.Choice(["stdio", "streamable", "sse"]),
-    default="sse",
-    help="Transport type",
-)
-# 启动服务器的主函数
-def main(port: int, transport: str) -> int:
-    """Main entry point to run the MCP server."""
-
-    def run_server(app):
-        starlette_app = CORSMiddleware(
-            app,
-            allow_origins=["*"],  # Allow all origins - adjust as needed for production
-            allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
-            expose_headers=["Mcp-Session-Id"],
-        )
-        import uvicorn
-
-        uvicorn.run(starlette_app, host="0.0.0.0", port=port)
-
-    try:
-        logger.info("Starting MySQL MCP server...")
-        config = get_db_config()
-        logger.info(f"Database config: {config['host']}/{config['database']} as {config['user']}")
-        # 使用 streamable-http 作为传输层
-        if transport == "sse":
-            run_server(mcp.sse_app())
-        elif transport == "streamable":
-            run_server(mcp.streamable_http_app())
-        else:
-            mcp.run(transport="stdio")
-
-        return 0
-    except Exception as e:
-        logger.error(f"Server error: {str(e)}", exc_info=True)
-        return 1
+@with_mcp_options(3004)
+def main(transport: str, port: int):
+    """主函数，启动MCP服务器"""
+    run_mcp_server(mcp, transport, port= port)
 
 
 if __name__ == "__main__":

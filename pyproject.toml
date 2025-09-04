@@ -20,6 +20,7 @@ knowledge_mcp = "knowledge_mcp.server:main"
 element_plus_mcp = "element_plus_mcp.server:main"
 mysql_mcp = "mysql_mcp.server:main"
 template_mcp = "template_mcp.server:main"
+demo_mcp = "demo_mcp.server:main"
 
 
 [tool.uv]
@@ -33,6 +34,7 @@ packages = [
     "element_plus_mcp",
     "mysql_mcp",
     "template_mcp",
+    "demo_mcp",
 ]
 package-dir = { "" = "src" }
 

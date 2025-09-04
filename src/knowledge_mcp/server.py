@@ -14,6 +14,8 @@ import psycopg
 import requests
 from starlette.middleware.cors import CORSMiddleware
 
+from common.mcp_cli import with_mcp_options, run_mcp_server
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -331,31 +333,10 @@ def search_knowledge(request: KnowledgeQueryRequest) -> Dict[str, Any]:
         # 确保关闭数据库连接
         searcher.close_connection()
 
-@click.command()
-@click.option(
-    "--transport",
-    type=click.Choice(["stdio", "streamable", "sse"]),
-    default="stdio",
-    help="Transport type",
-)
-@click.option("--port", type=int, default=3002, help="Port to listen on")
+@with_mcp_options(3002)
 def main(transport: str, port: int):
     """主函数，启动MCP服务器"""
-    def run_server(app):
-        starlette_app = CORSMiddleware(
-            app,
-            allow_origins=["*"],  # Allow all origins - adjust as needed for production
-            allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
-            expose_headers=["Mcp-Session-Id"],
-        )
-        import uvicorn
-        uvicorn.run(starlette_app, host="0.0.0.0", port=port)
-    if transport == "sse":
-        run_server(mcp.sse_app())
-    elif transport == "streamable":
-        run_server(mcp.streamable_http_app())
-    else:
-        mcp.run(transport="stdio")
+    run_mcp_server(mcp, transport, port= port)
 
 if __name__ == "__main__":
     main()
