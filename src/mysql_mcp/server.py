@@ -196,6 +196,7 @@ def prepare_template_content(
     table_name: Annotated[str, Field(description="Name of the table to prepare template content")],
 ) -> list[TextContent]:
     """Prepare template content for a specific table"""
+    # todo 解析指定的表结构，拼接模板数据上下文
     pass
 
 

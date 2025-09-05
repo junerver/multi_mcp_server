@@ -5,29 +5,18 @@ from mysql_mcp.gen.types import GenTable, GenTableColumn
 from typing import Optional
 
 
-def select_table_by_name(config: MysqlDatabaseConfig, table_name: str) -> Optional[GenTable]:
+def select_table_by_name(cursor: mysql.connector.cursor.MySQLCursor, table_name: str) -> Optional[GenTable]:
     """
     根据表名查询数据库表信息，返回GenTable对象
 
     Args:
-        config: MySQL数据库配置
+        cursor: MySQL数据库游标
         table_name: 要查询的表名
 
     Returns:
         GenTable对象，如果表不存在则返回None
     """
     try:
-        # 建立数据库连接
-        connection = mysql.connector.connect(
-            host=config["host"],
-            port=config["port"],
-            user=config["user"],
-            password=config["password"],
-            database=config["database"],
-        )
-
-        cursor = connection.cursor(dictionary=True)
-
         # 执行查询SQL，参考提供的SQL逻辑
         query = """
         SELECT table_name, table_comment, create_time, update_time 
@@ -79,29 +68,18 @@ def select_table_by_name(config: MysqlDatabaseConfig, table_name: str) -> Option
             connection.close()
 
 
-def _select_table_columns_by_name(config: MysqlDatabaseConfig, table_name: str) -> list[GenTableColumn]:
+def select_table_columns_by_name(cursor: mysql.connector.cursor.MySQLCursor, table_name: str) -> list[GenTableColumn]:
     """
     根据表名查询数据库表列信息，返回GenTableColumn列表
 
     Args:
-        config: MySQL数据库配置
+        cursor: MySQL数据库游标
         table_name: 要查询的表名
 
     Returns:
         表列信息列表，如果表不存在则返回空列表
     """
     try:
-        # 建立数据库连接
-        connection = mysql.connector.connect(
-            host=config["host"],
-            port=config["port"],
-            user=config["user"],
-            password=config["password"],
-            database=config["database"],
-        )
-
-        cursor = connection.cursor(dictionary=True)
-
         # 执行查询SQL，参考提供的SQL逻辑
         query = """
         SELECT column_name,
