@@ -1,11 +1,13 @@
-import mysql.connector
+from mysql.connector.cursor import MySQLCursorAbstract
+import mysql
 from mysql_mcp.gen.config import GEN_CONFIG
-from mysql_mcp.types import MysqlDatabaseConfig
 from mysql_mcp.gen.types import GenTable, GenTableColumn
-from typing import Optional
+from typing import Optional, List
 
 
-def select_table_by_name(cursor: mysql.connector.cursor.MySQLCursor, table_name: str) -> Optional[GenTable]:
+
+
+def select_table_by_name(cursor: MySQLCursorAbstract, table_name: str) -> Optional[GenTable]:
     """
     根据表名查询数据库表信息，返回GenTable对象
 
@@ -29,20 +31,23 @@ def select_table_by_name(cursor: mysql.connector.cursor.MySQLCursor, table_name:
 
         cursor.execute(query, (table_name,))
         result = cursor.fetchone()
-
         if result:
+            # 提取查询结果
+            table_name = result[0]  # TABLE_NAME
+            table_comment = result[1]  # TABLE_COMMENT
+            
             # 将查询结果转换为GenTable对象
             # 由于SQL只返回基本信息，其他字段使用默认值
             gen_table = GenTable(
-                tableName=result["table_name"],
-                tableComment=result["table_comment"] or "",
-                className=_convert_class_name(result["table_name"]),  #
+                tableName=table_name,
+                tableComment=table_comment or "",
+                className=_convert_class_name(table_name),
                 tplCategory="crud",
                 tplWebType="element-plus",  #
                 packageName=GEN_CONFIG["packageName"],  #
                 moduleName=_get_module_name(GEN_CONFIG["packageName"]),  #
-                businessName=_get_business_name(result["table_name"]),  #
-                functionName=_replace_text(result["table_comment"]),  #
+                businessName=_get_business_name(table_name),  #
+                functionName=_replace_text(table_comment),  #
                 functionAuthor=GEN_CONFIG["author"],  #
                 genType="0",
                 genPath="",
@@ -62,13 +67,9 @@ def select_table_by_name(cursor: mysql.connector.cursor.MySQLCursor, table_name:
     except mysql.connector.Error as e:
         print(f"数据库查询错误: {e}")
         return None
-    finally:
-        if "connection" in locals() and connection.is_connected():
-            cursor.close()
-            connection.close()
 
 
-def select_table_columns_by_name(cursor: mysql.connector.cursor.MySQLCursor, table_name: str) -> list[GenTableColumn]:
+def select_table_columns_by_name(cursor: MySQLCursorAbstract, table_name: str) -> List[GenTableColumn]:
     """
     根据表名查询数据库表列信息，返回GenTableColumn列表
 
@@ -100,25 +101,35 @@ def select_table_columns_by_name(cursor: mysql.connector.cursor.MySQLCursor, tab
 
         columns = []
         for row in results:
+            # 提取查询结果
+            # 索引对应: 0=column_name, 1=is_required, 2=is_pk, 3=sort, 4=column_comment, 5=is_increment, 6=column_type
+            column_name = row[0]
+            is_required = row[1]
+            is_pk = row[2]
+            sort = row[3]
+            column_comment = row[4]
+            is_increment = row[5]
+            column_type = row[6]
+            
             # 将查询结果转换为GenTableColumn对象
             column = GenTableColumn(
                 tableId=0,  # 这里设为0，实际使用时可能需要传入真实的tableId
-                columnName=row["column_name"],
-                columnComment=row["column_comment"] or "",
-                columnType=row["column_type"],
-                javaType=_convert_column_type_to_java(row["column_type"]),
-                javaField=_convert_to_camel_case_field(row["column_name"]),
-                isPk=row["is_pk"],
-                isIncrement=row["is_increment"],
-                isRequired=row["is_required"],
+                columnName=column_name,
+                columnComment=column_comment or "",
+                columnType=column_type,
+                javaType=column_type,
+                javaField=column_name,
+                isPk=is_pk,
+                isIncrement=is_increment,
+                isRequired=is_required,
                 isInsert="1",  # 默认为插入字段
-                isEdit="1" if row["is_pk"] == "0" else "0",  # 主键不可编辑
+                isEdit="1" if is_pk == "0" else "0",  # 主键不可编辑
                 isList="1",  # 默认为列表字段
-                isQuery="1" if row["is_pk"] == "1" else "0",  # 主键默认为查询字段
+                isQuery="1" if is_pk == "1" else "0",  # 主键默认为查询字段
                 queryType="EQ",  # 默认查询方式为等于
-                htmlType=_convert_column_type_to_html_type(row["column_type"]),
+                htmlType=column_type,
                 dictType="",  # 默认无字典类型
-                sort=row["sort"],
+                sort=sort,
             )
             columns.append(column)
 
@@ -127,10 +138,7 @@ def select_table_columns_by_name(cursor: mysql.connector.cursor.MySQLCursor, tab
     except mysql.connector.Error as e:
         print(f"数据库查询错误: {e}")
         return []
-    finally:
-        if "connection" in locals() and connection.is_connected():
-            cursor.close()
-            connection.close()
+
 
 
 def _convert_class_name(table_name: str) -> str:
@@ -236,70 +244,3 @@ def _replace_text(table_comment: str) -> str:
     return re.sub(r"[表若依]", "", table_comment)
 
 
-def _convert_column_type_to_java(column_type: str) -> str:
-    """
-    将MySQL数据类型转换为Java数据类型
-
-    Args:
-        column_type: MySQL数据类型
-
-    Returns:
-        对应的Java数据类型
-    """
-    column_type = column_type.lower()
-
-    if "bigint" in column_type:
-        return "Long"
-    elif any(t in column_type for t in ["int", "tinyint", "smallint", "mediumint"]):
-        return "Integer"
-    elif any(t in column_type for t in ["float", "double", "decimal", "numeric"]):
-        return "BigDecimal"
-    elif any(t in column_type for t in ["char", "varchar", "text", "longtext", "mediumtext", "tinytext"]):
-        return "String"
-    elif any(t in column_type for t in ["date", "time", "datetime", "timestamp"]):
-        return "Date"
-    elif "bit" in column_type:
-        return "Boolean"
-    else:
-        return "String"
-
-
-def _convert_to_camel_case_field(snake_str: str) -> str:
-    """
-    将下划线命名转换为小驼峰命名（字段名）
-
-    Args:
-        snake_str: 下划线命名的字符串
-
-    Returns:
-        小驼峰命名的字符串
-    """
-    if not snake_str:
-        return snake_str
-
-    # 分割字符串并转换为小驼峰命名
-    components = snake_str.split("_")
-    # 第一个单词保持小写，其余单词首字母大写
-    return components[0].lower() + "".join(word.capitalize() for word in components[1:] if word)
-
-
-def _convert_column_type_to_html_type(column_type: str) -> str:
-    """
-    将MySQL数据类型转换为HTML表单控件类型
-
-    Args:
-        column_type: MySQL数据类型
-
-    Returns:
-        对应的HTML表单控件类型
-    """
-    column_type = column_type.lower()
-    
-    if any(t in column_type for t in ['text', 'longtext', 'mediumtext']):
-        return 'textarea'
-    elif any(t in column_type for t in ['date', 'datetime', 'timestamp']):
-        return 'datetime'
-    elif 'time' in column_type:
-        return 'datetime'
-    else:
-        return 'input'

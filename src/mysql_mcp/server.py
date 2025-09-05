@@ -10,10 +10,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 from mysql.connector import connect, Error
 from pydantic import Field
-from starlette.middleware.cors import CORSMiddleware
 
 from common.mcp_cli import with_mcp_options, run_mcp_server
 from mysql_mcp.cache import Cache
+from mysql_mcp.gen.gen import select_table_by_name,select_table_columns_by_name
+from mysql_mcp.gen.types import GenTable, VelocityContext
+from mysql_mcp.gen.utils import init_column_field, set_pk_column, prepare_context
 from mysql_mcp.types import MysqlDatabaseConfig
 
 # 从 .env 文件读取环境变量
@@ -117,7 +119,7 @@ def describe_table(table_name: Annotated[str, Field(description="Name of the tab
         return [TextContent(type="text", text=cached_result)]
     try:
         with connect(**config) as conn:
-            with conn.cursor() as cursor:
+            with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(f"SHOW FULL COLUMNS FROM {table_name}")
                 columns = cursor.fetchall()
                 # 格式化表结构信息
@@ -191,13 +193,33 @@ def list_tables() -> list[TextContent]:
         raise RuntimeError(f"Execution error: {str(e)}")
 
 
-@mcp.tool()
+@mcp.tool(structured_output=True)
 def prepare_template_content(
     table_name: Annotated[str, Field(description="Name of the table to prepare template content")],
-) -> list[TextContent]:
+) -> VelocityContext:
     """Prepare template content for a specific table"""
-    # todo 解析指定的表结构，拼接模板数据上下文
-    pass
+    config = get_db_config()
+    try:
+        with connect(**config) as conn:
+            with conn.cursor() as cursor:
+                # 获取表信息
+                gen_table:GenTable = select_table_by_name(cursor, table_name)
+                if not gen_table:
+                    raise ValueError(f"表 {table_name} 不存在")
+                # 获取字段信息
+                columns = select_table_columns_by_name(cursor, table_name)
+                if not columns:
+                    raise ValueError(f"表 {table_name} 不存在字段")
+                # 初始化字段内容
+                [init_column_field(column) for column in columns]
+                set_pk_column(columns, gen_table)
+                return prepare_context(gen_table)
+    except Error as e:
+        logger.error(f"数据库错误: {str(e)}")
+        raise RuntimeError(f"Database error: {str(e)}")
+    except Exception as e:
+        logger.error(f"执行错误: {str(e)}")
+        raise RuntimeError(f"Execution error: {str(e)}")
 
 
 @with_mcp_options(3004)
