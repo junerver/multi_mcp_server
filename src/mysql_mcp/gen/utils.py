@@ -428,7 +428,7 @@ def prepare_context(table: GenTable) -> VelocityContext:
     context.basePackage = _get_package_prefix(package_name) if package_name else None
     context.packageName = package_name
     context.author = table.functionAuthor
-    context.datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    context.datetime = datetime.now().strftime("%Y-%m-%d")
     context.pkColumn = table.pkColumn
     context.importList = _get_import_list(table)
     context.permissionPrefix = _get_permission_prefix(module_name, business_name)
