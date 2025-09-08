@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal, Dict, Any
-from datetime import datetime
 
 
 class GenTable(BaseModel):

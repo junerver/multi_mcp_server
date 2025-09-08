@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
-import click
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
@@ -211,7 +210,7 @@ def prepare_template_context(
                 if not columns:
                     raise ValueError(f"表 {table_name} 不存在字段")
                 # 初始化字段内容
-                [init_column_field(column) for column in columns]
+                [init_column_field(column,gen_table) for column in columns]
                 set_pk_column(columns, gen_table)
                 return prepare_context(gen_table)
     except Error as e:

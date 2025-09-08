@@ -3,16 +3,13 @@
 """
 
 import logging
-import os
 import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import  List
 
-import click
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent, Prompt, PromptMessage
 from pydantic import Field
-from starlette.middleware.cors import CORSMiddleware
 
 from common.mcp_cli import with_mcp_options, run_mcp_server
 
