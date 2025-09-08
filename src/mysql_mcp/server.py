@@ -194,10 +194,10 @@ def list_tables() -> list[TextContent]:
 
 
 @mcp.tool(structured_output=True)
-def prepare_template_content(
-    table_name: Annotated[str, Field(description="Name of the table to prepare template content")],
+def prepare_template_context(
+    table_name: Annotated[str, Field(description="Name of the table to prepare template context")],
 ) -> VelocityContext:
-    """Prepare template content for a specific table"""
+    """Prepare template context for a specific table"""
     config = get_db_config()
     try:
         with connect(**config) as conn:
