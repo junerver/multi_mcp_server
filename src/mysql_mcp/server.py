@@ -212,7 +212,9 @@ def prepare_template_context(
                 # 初始化字段内容
                 [init_column_field(column,gen_table) for column in columns]
                 set_pk_column(columns, gen_table)
-                return prepare_context(gen_table)
+                template_context =  prepare_context(gen_table)
+                logger.info(f"模板上下文: {template_context}")
+                return template_context
     except Error as e:
         logger.error(f"数据库错误: {str(e)}")
         raise RuntimeError(f"Database error: {str(e)}")

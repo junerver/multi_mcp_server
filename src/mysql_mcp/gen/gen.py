@@ -4,9 +4,6 @@ from mysql_mcp.gen.config import GEN_CONFIG
 from mysql_mcp.gen.types import GenTable, GenTableColumn
 from typing import Optional, List
 
-
-
-
 def select_table_by_name(cursor: MySQLCursorAbstract, table_name: str) -> Optional[GenTable]:
     """
     根据表名查询数据库表信息，返回GenTable对象
@@ -65,7 +62,9 @@ def select_table_by_name(cursor: MySQLCursorAbstract, table_name: str) -> Option
             return None
 
     except mysql.connector.Error as e:
-        print(f"数据库查询错误: {e}")
+        from mysql_mcp.server import logger
+
+        logger.error(f"数据库查询错误: {e}")
         return None
 
 
@@ -136,7 +135,8 @@ def select_table_columns_by_name(cursor: MySQLCursorAbstract, table_name: str) -
         return columns
 
     except mysql.connector.Error as e:
-        print(f"数据库查询错误: {e}")
+        from mysql_mcp.server import logger
+        logger.error(f"数据库查询错误: {e}")
         return []
 
 
