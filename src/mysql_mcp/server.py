@@ -11,17 +11,19 @@ from mysql.connector import connect, Error
 from pydantic import Field
 
 from common.mcp_cli import with_mcp_options, run_mcp_server
-from mysql_mcp.cache import Cache
+from common.cache import Cache
 from mysql_mcp.gen.gen import select_table_by_name,select_table_columns_by_name
 from mysql_mcp.gen.types import GenTable, VelocityContext
 from mysql_mcp.gen.utils import init_column_field, set_pk_column, prepare_context
 from mysql_mcp.types import MysqlDatabaseConfig
 
 # 从 .env 文件读取环境变量
-env_file = Path(__file__).parent.parent.parent / ".env"
-if env_file.exists():
-    # 加载 .env 文件
-    load_dotenv(env_file)
+# 如果 MYSQL_HOST 环境变量未配置，则尝试从 .env 文件加载
+if not os.getenv("MYSQL_HOST"):
+    env_file = Path(__file__).parent.parent.parent / ".env"
+    if env_file.exists():
+        # 加载 .env 文件
+        load_dotenv(env_file)
 
 # 配置log工具
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -197,6 +199,9 @@ def prepare_template_context(
     table_name: Annotated[str, Field(description="Name of the table to prepare template context")],
 ) -> VelocityContext:
     """Prepare template context for a specific table"""
+    if cache.get(table_name):
+        logger.info(f"从缓存获取表 {table_name} 的模板上下文")
+        return cache.get(table_name)
     config = get_db_config()
     try:
         with connect(**config) as conn:
@@ -212,7 +217,9 @@ def prepare_template_context(
                 # 初始化字段内容
                 [init_column_field(column,gen_table) for column in columns]
                 set_pk_column(columns, gen_table)
-                return prepare_context(gen_table)
+                template_context = prepare_context(gen_table)
+                cache.set(table_name, template_context)
+                return template_context
     except Error as e:
         logger.error(f"数据库错误: {str(e)}")
         raise RuntimeError(f"Database error: {str(e)}")

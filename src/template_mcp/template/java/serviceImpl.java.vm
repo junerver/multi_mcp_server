@@ -65,11 +65,11 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
 	@Transactional(readOnly = false, rollbackFor = Exception.class)
 	public int insert${ClassName}(${ClassName} ${className}) {
         #if($table.sub)
-			int rows = ${className}Mapper.insert${ClassName}(${className});
+			int rows = ${className}Mapper.insert(${className});
 			insert${subClassName}(${className});
 			return rows;
         #else
-			return ${className}Mapper.insert${ClassName}(${className});
+			return ${className}Mapper.insert(${className});
         #end
 	}
 
@@ -141,7 +141,7 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
 					list.add(${subclassName});
 				}
 				if (list.size() > 0) {
-                        ${className}Mapper.batch${subClassName}(list);
+                        ${className}Mapper.insert(list);
 				}
 			}
 		}

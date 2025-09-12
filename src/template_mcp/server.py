@@ -5,13 +5,17 @@
 import logging
 import sys
 from pathlib import Path
-from typing import  List
+from typing import List
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent, Prompt, PromptMessage
 from pydantic import Field
 
+from common.cache import Cache
 from common.mcp_cli import with_mcp_options, run_mcp_server
+
+# 创建全局缓存实例
+cache = Cache()
 
 # 配置日志
 logging.basicConfig(
@@ -194,6 +198,8 @@ def get_template_content(
     Returns:
         List[TextContent]: 包含模板文件内容的文本内容列表
     """
+    if cache.get(template_name):
+        return [TextContent(type="text", text=cache.get(template_name))]
     try:
         # 验证模板名称
         if not validate_template_name(template_name):
@@ -220,7 +226,7 @@ def get_template_content(
         result += "\n```"
 
         logger.info(f"成功获取模板内容: {template_name}")
-
+        cache.set(template_name, result)
         return [TextContent(type="text", text=result)]
 
     except FileNotFoundError as e:
@@ -332,14 +338,11 @@ def list_template_categories() -> List[TextContent]:
             result += "\n"
 
         return [TextContent(type="text", text=result)]
-        
+
     except Exception as e:
         error_msg = f"获取模板类别时发生错误: {str(e)}"
         logger.error(error_msg)
-        return [TextContent(
-            type="text",
-            text=f"错误: {error_msg}"
-        )]
+        return [TextContent(type="text", text=f"错误: {error_msg}")]
 
 
 @with_mcp_options(3005)
