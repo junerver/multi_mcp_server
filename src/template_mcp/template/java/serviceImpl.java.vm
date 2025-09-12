@@ -64,12 +64,6 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
 	@Override
 	@Transactional(readOnly = false, rollbackFor = Exception.class)
 	public int insert${ClassName}(${ClassName} ${className}) {
-		${className}.insertInit(SecurityUtils.getLoginUser().getUsername());
-        #*#foreach ($column in $columns)
-            #if($column.javaField == 'createTime')
-                ${className}.setCreateTime(DateUtils.getNowDate());
-            #end
-        #end*#
         #if($table.sub)
 			int rows = ${className}Mapper.insert${ClassName}(${className});
 			insert${subClassName}(${className});
@@ -88,12 +82,6 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
 	@Override
 	@Transactional(readOnly = false, rollbackFor = Exception.class)
 	public int update${ClassName}(${ClassName} ${className}) {
-		${className}.updateInit(SecurityUtils.getLoginUser().getUsername());
-        #*#foreach ($column in $columns)
-            #if($column.javaField == 'updateTime')
-                ${className}.setUpdateTime(DateUtils.getNowDate());
-            #end
-        #end*#
         #if($table.sub)
                 ${className}Mapper.delete${subClassName}By${subTableFkClassName}(${className}.get${pkColumn.capJavaField}())
 			;

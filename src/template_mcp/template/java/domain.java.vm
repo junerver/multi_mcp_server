@@ -28,7 +28,7 @@ import java.util.List;
         @Data
         @EqualsAndHashCode(callSuper = true)
         @TableName("${tableName}")
-		public class ${ClassName} extends BaseModel
+		public class ${ClassName} extends BaseModel implements Serializable
 		{
 		private static final long serialVersionUID = 1L;
 

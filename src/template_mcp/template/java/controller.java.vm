@@ -38,16 +38,16 @@ public class ${ClassName}Controller extends BaseController {
     @Autowired
     private I${ClassName}Service ${className}Service;
 
-    /**
-     * 查询${functionName}列表
-     */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:list')")
-    @GetMapping("/list")
+/**
+ * 查询${functionName}列表
+ */
+@PreAuthorize("@ss.hasPermi('${permissionPrefix}:list')")
+@GetMapping("/list")
 ##    #if($table.crud || $table.sub)
     public R<TableDataInfo> list(${ClassName} ${className}) {
         startPage();
         List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
-        return getDataTable(list);
+        return R.successData(getDataTable(list));
     }
 ##    #elseif($table.tree)
 ##        public R<List<${ClassName}>> list(${ClassName} ${className}) {
@@ -74,7 +74,7 @@ public class ${ClassName}Controller extends BaseController {
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:query')")
     @GetMapping(value = "/info/{${pkColumn.javaField}}")
     public R<${ClassName}> getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField}) {
-        return R.success(${className}Service.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
+        return R.successData(${className}Service.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
     }
 
     /**
