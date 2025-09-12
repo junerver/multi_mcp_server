@@ -1,13 +1,10 @@
 import logging
 import sys
 
-import click
 from mcp.server import FastMCP
 from mcp.types import TextContent
-from starlette.middleware.cors import CORSMiddleware
-from starlette.types import ASGIApp
 
-from common.mcp_cli import with_mcp_options, run_server_with_cors, run_mcp_server
+from common.mcp_cli import with_mcp_options, run_mcp_server
 
 # 配置日志
 logging.basicConfig(
