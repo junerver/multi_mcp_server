@@ -3,10 +3,13 @@ package ${packageName}.domain;
 #foreach ($import in $importList)
 import ${import};
 #end
+import java.io.Serializable;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.jkr.framework.aspectj.lang.annotation.Excel;
+import com.fasterxml.jackson.annotation.JsonFormat;
 ###if($table.crud || $table.sub)
 import com.jkr.framework.web.domain.BaseModel;
 ###elseif($table.tree)

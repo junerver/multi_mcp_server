@@ -23,7 +23,7 @@ class GenTable(BaseModel):
     treeCode: Optional[str] = Field(default=None, description="树编码字段")
     treeParentCode: Optional[str] = Field(default=None, description="树父编码字段")
     treeName: Optional[str] = Field(default=None, description="树名称字段")
-    parentMenuId: Optional[str] = Field(default=None, description="上级菜单ID字段")
+    parentMenuId: Optional[str] = Field(default="1", description="上级菜单ID字段")
     parentMenuName: Optional[str] = Field(default=None, description="上级菜单名称字段")
 
 class GenTableColumn(BaseModel):
@@ -46,6 +46,7 @@ class GenTableColumn(BaseModel):
     htmlType: Optional[str] = Field(default=None, description="显示类型（input文本框、textarea文本域、select下拉框、checkbox复选框、radio单选框、datetime日期控件、image图片上传控件、upload文件上传控件、editor富文本控件）")
     dictType: Optional[str] = Field(default="", description="字典类型")
     sort: Optional[int] = Field(default=None, description="排序")
+    capJavaField: Optional[str] = Field(default=None, description="JAVA字段名（首字母大写）")
 
 
 class VelocityContext(BaseModel):

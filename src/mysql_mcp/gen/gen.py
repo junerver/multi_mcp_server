@@ -54,7 +54,6 @@ def select_table_by_name(cursor: MySQLCursorAbstract, table_name: str) -> Option
                 treeCode="",
                 treeParentCode="",
                 treeName="",
-                parentMenuId="",
                 parentMenuName="",
             )
             return gen_table

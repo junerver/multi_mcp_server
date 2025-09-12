@@ -136,6 +136,7 @@ def init_column_field(column: GenTableColumn, table: Optional[GenTable] = None) 
     
     # 设置java字段名
     column.javaField = _to_camel_case(column_name)
+    column.capJavaField = _capitalize(column.javaField)
     
     # 设置默认类型
     column.javaType = _TYPE_STRING
