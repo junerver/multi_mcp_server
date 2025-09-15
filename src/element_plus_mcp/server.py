@@ -1,13 +1,14 @@
 import json
 import logging
+import os
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
-import click
 from mcp.server.fastmcp import FastMCP, Context
 from pydantic import Field
 
+from common.mcp_cli import with_mcp_options, run_mcp_server
 from element_plus_mcp.github import get_config, get_directory_contents, get_file_content
 from element_plus_mcp.models import (
     DirectoryStructure,
@@ -20,7 +21,14 @@ from element_plus_mcp.models import (
     ComponentSource,
     SourceFile,
 )
-from starlette.middleware.cors import CORSMiddleware
+
+# 加载环境变量，更新配置对象信息
+env_file = Path(__file__).parent.parent.parent / ".env"
+if env_file.exists():
+    # 加载 .env 文件
+    from dotenv import load_dotenv
+
+    load_dotenv(env_file)
 
 # 配置日志
 logging.basicConfig(
@@ -31,18 +39,19 @@ logger = logging.getLogger(__name__)
 # Create an MCP server
 mcp = FastMCP("ElementPlusServer", host="0.0.0.0", port=3003)
 
-
-def get_api_key_from_context(ctx: Context) -> str:
+def get_api_key_from_context(ctx: Optional[Context]) -> str:
     """
-    从上下文中获取API密钥
+    从上下文中获取API密钥，如果使用 stdio 通信层，则从环境变量中读取
     """
-    api_key = ctx.request_context.request.headers.get("X-GITHUB-API-KEY")
-    logger.info(f"获取到api_key： {api_key}")
-    if not api_key:
-        logger.error("请求头中未找到API密钥")
-        return ""
-    return api_key
-
+    if ctx:
+        api_key = ctx.request_context.request.headers.get("X-GITHUB-API-KEY")
+        logger.info(f"获取到api_key： {api_key}")
+        if not api_key:
+            logger.error("请求头中未找到API密钥")
+            return ""
+        return api_key
+    else:
+        return os.getenv("GITHUB_API_KEY", "")
 
 @mcp.tool()
 def get_component(
@@ -52,7 +61,6 @@ def get_component(
     """
     获取指定element-plus组件的源码
     """
-    logger.info(f"获取到header： {ctx.request_context.request.headers}")
     try:
         # element-plus组件通常在packages/components目录下
         component_path = f"packages/components/{component_name.lower()}"
@@ -200,8 +208,11 @@ def list_components(ctx: Context) -> ComponentList:
 
 @mcp.tool()
 def get_component_metadata(
-    component_name: Annotated[str, Field(description="Name of the element-plus component (e.g., 'avatar', 'button')"),],
-        ctx: Context,
+    component_name: Annotated[
+        str,
+        Field(description="Name of the element-plus component (e.g., 'avatar', 'button')"),
+    ],
+    ctx: Context,
 ) -> ComponentMetadata:
     """
     获取指定element-plus组件的元数据信息
@@ -332,43 +343,10 @@ def get_directory_structure(
         )
 
 
-@click.command()
-@click.option(
-    "--transport",
-    type=click.Choice(["stdio", "streamable", "sse"]),
-    default="stdio",
-    help="Transport type",
-)
-@click.option("--port", type=int, default=3003, help="Port to listen on")
+@with_mcp_options(3003)
 def main(transport: str, port: int):
     """主函数，启动MCP服务器"""
-    logger.info("启动Element Plus MCP服务器...")
-    logger.info(f"GitHub API Token: {'已配置' if get_config()['github_api_key'] else '未配置'}")
-
-    def run_server(app):
-        starlette_app = CORSMiddleware(
-            app,
-            allow_origins=["*"],  # Allow all origins - adjust as needed for production
-            allow_methods=["GET", "POST", "DELETE"],  # MCP streamable HTTP methods
-            expose_headers=["Mcp-Session-Id"],
-        )
-        import uvicorn
-
-        uvicorn.run(starlette_app, host="0.0.0.0", port=port)
-
-    if transport == "sse":
-        run_server(mcp.sse_app())
-    elif transport == "streamable":
-        run_server(mcp.streamable_http_app())
-    else:
-        # 加载环境变量，更新配置对象信息
-        env_file = Path(__file__).parent.parent.parent / ".env"
-        if env_file.exists():
-            # 加载 .env 文件
-            from dotenv import load_dotenv
-
-            load_dotenv(env_file)
-        mcp.run(transport="stdio")
+    run_mcp_server(mcp, transport, port= port)
 
 if __name__ == "__main__":
     main()
