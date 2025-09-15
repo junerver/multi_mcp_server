@@ -2,9 +2,6 @@
 知识库服务
 提供基于向量搜索的知识检索功能
 """
-import click
-from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, Field
 import logging
 import os
 import sys
@@ -12,7 +9,8 @@ from typing import List, Dict, Optional, Any
 
 import psycopg
 import requests
-from starlette.middleware.cors import CORSMiddleware
+from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, Field
 
 from common.mcp_cli import with_mcp_options, run_mcp_server
 
