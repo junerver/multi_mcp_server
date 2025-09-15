@@ -2,12 +2,20 @@
 
 <cite>
 **本文档引用的文件**   
-- [server.py](file://src/template_mcp/server.py#L1-L467)
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
-- [Form.vue.vm](file://src/template_mcp/template/vue/v3/Form.vue.vm#L1-L273)
-- [sql.vm](file://src/template_mcp/template/sql/sql.vm#L1-L25)
+- [server.py](file://src/template_mcp/server.py#L1-L354) - *已更新：添加缓存机制*
+- [cache.py](file://src/common/cache.py#L1-L25) - *新增缓存模块*
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L68)
+- [Form.vue.vm](file://src/template_mcp/template/vue/v3/Form.vue.vm#L1-L272)
+- [sql.vm](file://src/template_mcp/template/sql/sql.vm)
 - [README.md](file://src/template_mcp/README.md#L1-L168)
 </cite>
+
+## 更新摘要
+**已更新内容**
+- 在“性能考虑”章节中新增了缓存机制说明
+- 更新了 `get_template_content` 接口的处理流程图，体现缓存逻辑
+- 在“核心组件”部分补充了缓存模块的说明
+- 更新了“架构概述”中的数据流描述，包含缓存层
 
 ## 目录
 1. [简介](#简介)
@@ -55,43 +63,45 @@ N --> Y[mapper.xml]
 ```
 
 **图示来源**
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 - [README.md](file://src/template_mcp/README.md#L1-L168)
 
 **中文部分来源**
 - [项目结构](#项目结构)
 
 ## 核心组件
-`template_mcp` 服务的核心功能由 `server.py` 文件中的几个关键函数和数据结构实现。`TEMPLATE_FILES` 字典是服务的配置中心，它定义了所有支持的模板名称、文件路径、描述和类别。`get_template_content`、`get_sample_content` 和 `list_templates` 等函数是暴露给外部调用的API工具，它们负责处理请求、读取文件并返回格式化的响应。`validate_template_name` 和 `get_template_file_path` 等辅助函数则确保了操作的安全性和准确性。整个服务通过 `FastMCP` 框架进行封装，提供了标准化的接口。
+`template_mcp` 服务的核心功能由 `server.py` 文件中的几个关键函数和数据结构实现。`TEMPLATE_FILES` 字典是服务的配置中心，它定义了所有支持的模板名称、文件路径、描述和类别。`get_template_content`、`get_sample_content` 和 `list_templates` 等函数是暴露给外部调用的API工具，它们负责处理请求、读取文件并返回格式化的响应。`validate_template_name` 和 `get_template_file_path` 等辅助函数则确保了操作的安全性和准确性。**新增的全局缓存实例 `cache` 显著提升了模板内容获取的性能**。整个服务通过 `FastMCP` 框架进行封装，提供了标准化的接口。
 
 **中文部分来源**
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
+- [cache.py](file://src/common/cache.py#L1-L25)
 
 ## 架构概述
-该服务采用轻量级的微服务架构，核心是一个基于FastMCP的服务器。外部客户端通过MCP协议与服务器通信。服务器内部，`server.py` 作为主控制器，接收来自客户端的工具调用请求。根据请求的工具名称（如 `get_template_content`），服务器会调用相应的处理函数。这些函数会查询 `TEMPLATE_FILES` 配置，验证输入参数，然后从 `template` 目录读取对应的Velocity模板文件，最后将文件内容封装成结构化的响应返回给客户端。整个流程简洁高效，专注于单一职责——模板内容的检索与分发。
+该服务采用轻量级的微服务架构，核心是一个基于FastMCP的服务器。外部客户端通过MCP协议与服务器通信。服务器内部，`server.py` 作为主控制器，接收来自客户端的工具调用请求。根据请求的工具名称（如 `get_template_content`），服务器会调用相应的处理函数。这些函数会查询 `TEMPLATE_FILES` 配置，验证输入参数，**首先检查全局缓存是否存在对应模板内容**，若存在则直接返回，否则从 `template` 目录读取对应的Velocity模板文件，最后将文件内容封装成结构化的响应返回给客户端，并存入缓存。整个流程简洁高效，专注于单一职责——模板内容的检索与分发。
 
 ```mermaid
 graph LR
 Client[客户端] --> |MCP请求| Server[template_mcp服务器]
 Server --> |调用| Tool[工具函数]
 Tool --> |查询| Config[TEMPLATE_FILES配置]
-Tool --> |读取| Template[template目录]
-Tool --> |读取| Sample[sample目录]
+Tool --> |检查| Cache[缓存]
+Cache --> |命中| Tool
+Cache --> |未命中| Template[template目录]
 Template --> |返回| Tool
-Sample --> |返回| Tool
+Tool --> |存入| Cache
 Tool --> |返回| Server
 Server --> |MCP响应| Client
 ```
 
 **图示来源**
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 
 ## 详细组件分析
 ### API接口分析
 `template_mcp` 服务通过 `@mcp.tool()` 和 `@mcp.prompt()` 装饰器暴露了多个API接口，这些接口是客户端与服务交互的主要方式。
 
 #### `get_template_content` 工具
-此工具是核心的代码模板获取接口。它接收一个 `template_name` 参数，用于指定要获取的模板。
+此工具是核心的代码模板获取接口。它接收一个 `template_name` 参数，用于指定要获取的模板。**该接口已添加缓存支持，首次获取后内容将被缓存5分钟，后续请求直接从内存返回，显著提升性能**。
 
 ```mermaid
 sequenceDiagram
@@ -100,27 +110,36 @@ participant Server as 服务器
 participant Tool as get_template_content
 participant Validator as validate_template_name
 participant Reader as read_template_content
+participant Cache as cache.get/set
 Client->>Server : 调用 get_template_content(template_name="domain")
 Server->>Tool : 转发请求
+Tool->>Cache : cache.get(template_name)
+alt 缓存命中
+Cache-->>Tool : 返回缓存内容
+Tool->>Tool : 构建响应
+Tool-->>Server : 返回缓存响应
+else 缓存未命中
 Tool->>Validator : 验证模板名称
 Validator-->>Tool : 返回验证结果
 alt 模板名称有效
 Tool->>Reader : 读取模板文件
 Reader-->>Tool : 返回模板内容
+Tool->>Cache : cache.set(template_name, 内容)
 Tool->>Tool : 构建格式化响应
-Tool-->>Server : 返回成功响应
-Server-->>Client : 返回模板内容
+Tool-->>Server : 返回新生成响应
 else 模板名称无效
 Tool-->>Server : 返回错误信息
-Server-->>Client : 返回错误信息
 end
+end
+Server-->>Client : 返回模板内容
 ```
 
 **图示来源**
-- [server.py](file://src/template_mcp/server.py#L253-L308)
+- [server.py](file://src/template_mcp/server.py#L189-L239)
+- [cache.py](file://src/common/cache.py#L1-L25)
 
 **中文部分来源**
-- [server.py](file://src/template_mcp/server.py#L253-L308)
+- [server.py](file://src/template_mcp/server.py#L189-L239)
 
 #### `list_templates` Prompt
 此Prompt用于列出所有可用的模板，帮助客户端发现服务支持的功能。
@@ -134,10 +153,10 @@ Return --> End([结束])
 ```
 
 **图示来源**
-- [server.py](file://src/template_mcp/server.py#L204-L249)
+- [server.py](file://src/template_mcp/server.py#L130-L179)
 
 **中文部分来源**
-- [server.py](file://src/template_mcp/server.py#L204-L249)
+- [server.py](file://src/template_mcp/server.py#L130-L179)
 
 ### 模板渲染流程分析
 虽然本服务目前主要提供模板文件的原始内容，但其底层的Velocity模板（.vm文件）定义了完整的代码生成逻辑。模板渲染流程发生在客户端或后续的代码生成引擎中，而非本服务内部。
@@ -158,12 +177,12 @@ E --> F[生成的代码<br>domain.java]
 ```
 
 **图示来源**
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
-- [Form.vue.vm](file://src/template_mcp/template/vue/v3/Form.vue.vm#L1-L273)
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L68)
+- [Form.vue.vm](file://src/template_mcp/template/vue/v3/Form.vue.vm#L1-L272)
 
 **中文部分来源**
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
-- [Form.vue.vm](file://src/template_mcp/template/vue/v3/Form.vue.vm#L1-L273)
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L68)
+- [Form.vue.vm](file://src/template_mcp/template/vue/v3/Form.vue.vm#L1-L272)
 
 ## 依赖分析
 `template_mcp` 服务的依赖关系相对简单，主要依赖于MCP协议栈和一些标准库。
@@ -176,25 +195,32 @@ A --> D[pydantic]
 A --> E[starlette.middleware.cors]
 A --> F[click]
 A --> G[标准库<br>logging, os, pathlib等]
-B --> H[MCP协议实现]
-C --> I[MCP数据类型]
+A --> H[src/common/cache.py]
+B --> I[MCP协议实现]
+C --> J[MCP数据类型]
 D --> J[数据验证]
 E --> K[CORS支持]
 F --> L[命令行接口]
+H --> M[内存缓存管理]
 ```
 
 **图示来源**
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
+- [cache.py](file://src/common/cache.py#L1-L25)
 
 ## 性能考虑
-由于该服务的主要操作是读取和返回文件内容，其性能开销极低。文件读取操作是I/O密集型的，但由于模板文件通常较小且数量有限，对性能的影响可以忽略不计。服务没有复杂的计算或数据库查询，因此响应时间非常快。为了进一步优化，可以考虑在服务启动时将所有模板内容缓存到内存中，从而将后续的请求处理变为纯内存操作，但这对于当前的使用场景并非必要。
+由于该服务的主要操作是读取和返回文件内容，其性能开销极低。文件读取操作是I/O密集型的，但由于模板文件通常较小且数量有限，对性能的影响可以忽略不计。服务没有复杂的计算或数据库查询，因此响应时间非常快。**为了进一步优化，已在 `get_template_content` 接口中引入了内存缓存机制（通过 `src/common/cache.py` 实现），默认缓存时间为5分钟。首次请求后，后续对同一模板的请求将直接从内存中返回，避免了重复的文件I/O操作，显著提升了高并发场景下的响应速度和系统吞吐量**。
+
+**中文部分来源**
+- [server.py](file://src/template_mcp/server.py#L189-L239)
+- [cache.py](file://src/common/cache.py#L1-L25)
 
 ## 故障排除指南
 当使用此API时，可能会遇到以下常见问题：
 
 **中文部分来源**
-- [server.py](file://src/template_mcp/server.py#L253-L308)
-- [server.py](file://src/template_mcp/server.py#L312-L387)
+- [server.py](file://src/template_mcp/server.py#L189-L239)
+- [server.py](file://src/template_mcp/server.py#L243-L318)
 
 ### 模板名称错误
 **问题**: 调用 `get_template_content` 时返回错误，提示“不支持的模板名称”。
@@ -209,4 +235,4 @@ F --> L[命令行接口]
 **解决方案**: 检查 `src/template_mcp/sample/` 目录下是否存在对应的示例文件。示例文件的存在与否不影响模板的获取。
 
 ## 结论
-代码模板生成API是一个功能明确、结构清晰的服务。它成功地将代码模板的管理与分发抽象为一个标准化的接口，极大地简化了代码生成工具的集成。通过分析其 `server.py` 实现和 `.vm` 模板文件，我们可以看到一个高效、可维护的自动化解决方案。该服务不仅提供了获取模板内容的核心功能，还通过 `list_templates` 等工具提供了良好的自省能力，方便客户端发现和使用。其基于Velocity的模板机制为未来的扩展（如支持更复杂的代码生成逻辑）奠定了坚实的基础。总体而言，这是一个设计良好、实用性强的开发辅助工具。
+代码模板生成API是一个功能明确、结构清晰的服务。它成功地将代码模板的管理与分发抽象为一个标准化的接口，极大地简化了代码生成工具的集成。通过分析其 `server.py` 实现和 `.vm` 模板文件，我们可以看到一个高效、可维护的自动化解决方案。该服务不仅提供了获取模板内容的核心功能，还通过 `list_templates` 等工具提供了良好的自省能力，方便客户端发现和使用。其基于Velocity的模板机制为未来的扩展（如支持更复杂的代码生成逻辑）奠定了坚实的基础。**最近引入的缓存机制进一步提升了服务的性能和响应能力，使其在高并发场景下表现更佳**。总体而言，这是一个设计良好、实用性强的开发辅助工具。

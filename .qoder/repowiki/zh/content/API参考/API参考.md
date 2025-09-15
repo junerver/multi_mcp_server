@@ -14,9 +14,11 @@
 
 ## 更新摘要
 **已做更改**  
-- 在 **mysql_mcp 模块分析** 部分新增了关于 `prepare_template_content` 工具接口的详细文档。
+- 在 **mysql_mcp 模块分析** 部分新增了关于 `prepare_template_context` 工具接口的详细文档。
 - 更新了 **mysql_mcp 模块分析** 的 **本节来源**，添加了对 `server.py` 文件中新增接口的引用。
-- 保持了文档其余部分的完整性，仅针对代码变更进行了精准更新。
+- 为 **template_mcp 模块分析** 和 **mysql_mcp 模块分析** 添加了缓存机制说明。
+- 新增了 `get_sample_content` 和 `list_template_categories` 两个API端点的文档。
+- 更新了相关代码文件的引用信息，反映最新的实现细节。
 
 ## 目录
 1. [简介](#简介)
@@ -35,7 +37,7 @@
 ## 项目结构
 项目采用模块化设计，每个MCP服务模块独立封装在 `src` 目录下的子目录中。每个模块包含其自身的 `server.py` 文件作为API入口点，部分模块还包含 `models.py`（数据模型）、`github.py`（外部API集成）等辅助文件。整体结构清晰，职责分离明确。
 
-``mermaid
+```mermaid
 graph TD
 src[src/] --> element_plus_mcp[element_plus_mcp/]
 src --> template_mcp[template_mcp/]
@@ -81,7 +83,7 @@ knowledge_mcp --> server_py5[server.py]
 ## 架构概览
 系统采用微服务架构思想，每个MCP模块是一个独立的服务单元。外部调用者通过HTTP请求与这些服务交互。服务内部通过定义好的工具函数处理业务逻辑，并可能调用外部API（如GitHub）或数据库。数据模型使用Pydantic定义，确保了数据的类型安全和序列化/反序列化的一致性。
 
-``mermaid
+```mermaid
 graph LR
 Client[客户端/AI模型] --> |HTTP请求| Server[MCP服务器]
 subgraph MCP_Server
@@ -111,7 +113,7 @@ end
 该模块使用API密钥进行认证。客户端必须在HTTP请求头中包含 `X-GITHUB-API-KEY` 字段，其值为有效的GitHub个人访问令牌（PAT）。
 
 **认证流程序列图**
-``mermaid
+```mermaid
 sequenceDiagram
 participant Client as "客户端"
 participant Server as "MCP服务器"
@@ -135,7 +137,7 @@ Server-->>Client : 返回ComponentMetadata
 #### 数据模型
 使用Pydantic模型定义请求和响应结构。
 
-``mermaid
+```mermaid
 classDiagram
 class ComponentMetadata {
 +name : str
@@ -350,6 +352,13 @@ ComponentDemo --> DemoFile : 包含
 ### template_mcp 模块分析
 该模块提供代码生成模板的访问。
 
+#### 缓存机制
+该模块使用全局 `Cache` 实例对模板内容进行缓存。当首次调用 `get_template_content` 时，会从文件系统读取内容并存入缓存；后续调用将直接从缓存中获取，显著提高响应速度。缓存默认有效期为5分钟。
+
+**本节来源**
+- [server.py](file://src/template_mcp/server.py)
+- [cache.py](file://src/common/cache.py)
+
 #### API端点
 
 **1. 列出所有模板**
@@ -359,7 +368,7 @@ ComponentDemo --> DemoFile : 包含
 - **认证方式**: 无
 - **所需头信息**: 无
 - **权限控制**: 无
-- **响应Schema**: `List[Dict]`，包含模板名称、描述、类别。
+- **响应Schema**: `Prompt`，包含所有模板的结构化信息。
 - **状态码**:
   - `200 OK`: 成功获取模板列表。
 - **请求示例**:
@@ -368,18 +377,19 @@ ComponentDemo --> DemoFile : 包含
   ```
 - **响应示例**:
   ```json
-  [
-    {
-      "name": "controller",
-      "description": "Controller控制器模板",
-      "category": "后端代码"
-    },
-    {
-      "name": "api",
-      "description": "API接口文件模板",
-      "category": "前端代码"
-    }
-  ]
+  {
+    "name": "list_templates",
+    "description": "列出所有可用的代码生成模板信息",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "text": "# 可用模板列表\n\n## 后端代码\n\n- **domain**: Domain实体类模板 (`java/domain.java.vm`)\n- **mapper**: Mapper接口模板 (`java/mapper.java.vm`)\n...\n\n## 使用说明\n\n使用 `get_template_content` 工具，传入模板名称即可获取对应的模板文件内容。\n\n支持的模板名称:\n- `domain`\n- `mapper`\n..."
+        }
+      }
+    ]
+  }
   ```
 - **curl命令**:
   ```bash
@@ -395,24 +405,89 @@ ComponentDemo --> DemoFile : 包含
 - **认证方式**: 无
 - **所需头信息**: 无
 - **权限控制**: 无
-- **响应Schema**: `str`，返回模板文件的原始内容。
+- **响应Schema**: `list[TextContent]`，返回格式化的模板信息，包含描述、类别、路径和模板内容。
 - **状态码**:
   - `200 OK`: 成功获取模板内容。
   - `404 Not Found`: 模板不存在。
-- **错误响应结构**: 直接返回错误信息字符串。
+- **错误响应结构**: 响应体为 `list[TextContent]`，`text` 字段包含错误信息。
 - **数据验证规则**: `template_name` 必须是预定义的模板名称之一。
 - **请求示例**:
   ```json
   GET /get_template_content?template_name=controller
   ```
 - **响应示例**:
-  ```java
-  package ${packageName}.controller;
-  import ...
+  ```json
+  [
+    {
+      "type": "text",
+      "text": "# 模板: controller\n\n**描述**: Controller控制器模板\n**类别**: 后端代码\n**路径**: java/controller.java.vm\n\n## 模板内容\n\n```velocity\npackage ${packageName}.controller;\nimport ...\n```\n"
+    }
+  ]
   ```
 - **curl命令**:
   ```bash
   curl -X GET "http://localhost:3005/get_template_content?template_name=controller"
+  ```
+
+**3. 获取示例代码**
+- **HTTP方法**: GET
+- **URL路径**: `/get_sample_content`
+- **请求参数**:
+  - **查询参数**:
+    - `template_name` (string, 必需): 模板名称。
+- **认证方式**: 无
+- **所需头信息**: 无
+- **权限控制**: 无
+- **响应Schema**: `list[TextContent]`，返回格式化的示例代码信息，包含描述、类别、路径和示例代码。
+- **状态码**:
+  - `200 OK`: 成功获取示例代码。
+  - `404 Not Found`: 示例文件不存在。
+- **错误响应结构**: 响应体为 `list[TextContent]`，`text` 字段包含错误信息。
+- **数据验证规则**: `template_name` 必须是预定义的模板名称之一。
+- **请求示例**:
+  ```json
+  GET /get_sample_content?template_name=controller
+  ```
+- **响应示例**:
+  ```json
+  [
+    {
+      "type": "text",
+      "text": "# 示例代码: controller\n\n**描述**: Controller控制器模板\n**类别**: 后端代码\n**模板路径**: java/controller.java.vm\n**示例路径**: java/controller.java\n\n## 示例代码\n\n```java\npackage com.example.controller;\nimport ...\n```\n"
+    }
+  ]
+  ```
+- **curl命令**:
+  ```bash
+  curl -X GET "http://localhost:3005/get_sample_content?template_name=controller"
+  ```
+
+**4. 列出模板类别**
+- **HTTP方法**: GET
+- **URL路径**: `/list_template_categories`
+- **请求参数**: 无
+- **认证方式**: 无
+- **所需头信息**: 无
+- **权限控制**: 无
+- **响应Schema**: `list[TextContent]`，返回按类别组织的模板列表。
+- **状态码**:
+  - `200 OK`: 成功获取模板类别列表。
+- **请求示例**:
+  ```json
+  GET /list_template_categories
+  ```
+- **响应示例**:
+  ```json
+  [
+    {
+      "type": "text",
+      "text": "# 模板类别\n\n## 后端代码\n\n- **domain**: Domain实体类模板\n- **mapper**: Mapper接口模板\n...\n\n## 前端代码\n\n- **api**: API接口文件模板\n- **vue_index**: Vue页面组件模板\n...\n"
+    }
+  ]
+  ```
+- **curl命令**:
+  ```bash
+  curl -X GET "http://localhost:3005/list_template_categories"
   ```
 
 **本节来源**
@@ -420,6 +495,13 @@ ComponentDemo --> DemoFile : 包含
 
 ### mysql_mcp 模块分析
 该模块提供对MySQL数据库的查询功能。
+
+#### 缓存机制
+该模块使用全局 `Cache` 实例对 `describe_table` 和 `list_tables` 的查询结果进行缓存。缓存键包含数据库名和表名，确保数据一致性。`prepare_template_context` 接口也使用表名作为键对生成的上下文进行缓存，避免重复的数据库查询和计算。
+
+**本节来源**
+- [server.py](file://src/mysql_mcp/server.py)
+- [cache.py](file://src/common/cache.py)
 
 #### API端点
 
@@ -484,7 +566,7 @@ ComponentDemo --> DemoFile : 包含
   [
     {
       "type": "text",
-      "text": "Tables in mydb:\nusers: 用户信息表\norders: 订单信息表"
+      "text": "Table users structure:\nField | Type | Null | Key | Default | Extra | Comment\n--------------------------------------------------------------------------------\nid | int | NO | PRI | NULL | auto_increment | 用户ID\nname | varchar(255) | YES | | NULL | | 用户名\n..."
     }
   ]
   ```
@@ -522,42 +604,83 @@ ComponentDemo --> DemoFile : 包含
   curl -X GET "http://localhost:3005/list_tables"
   ```
 
-**4. 准备模板内容**
+**4. 准备模板上下文**
 - **HTTP方法**: GET
-- **URL路径**: `/prepare_template_content`
+- **URL路径**: `/prepare_template_context`
 - **请求参数**:
   - **查询参数**:
     - `table_name` (string, 必需): 数据库表名。
 - **认证方式**: 无
 - **所需头信息**: 无
 - **权限控制**: 无
-- **响应Schema**: `list[TextContent]`，返回为指定数据库表准备的模板内容。
+- **响应Schema**: `VelocityContext`，返回为指定数据库表准备的模板上下文对象，包含类名、包名、字段列表等信息。
 - **状态码**:
-  - `200 OK`: 成功准备模板内容。
+  - `200 OK`: 成功准备模板上下文。
+  - `400 Bad Request`: 表不存在或无字段。
   - `500 Internal Server Error`: 服务器内部错误。
-- **错误响应结构**: 响应体为 `list[TextContent]`，`text` 字段包含错误信息。
+- **错误响应结构**: 抛出 `ValueError` 或 `RuntimeError`，由服务器捕获并返回。
 - **数据验证规则**: `table_name` 必须是数据库中存在的表名。
 - **请求示例**:
   ```json
-  GET /prepare_template_content?table_name=users
+  GET /prepare_template_context?table_name=users
   ```
 - **响应示例**:
   ```json
-  [
-    {
-      "type": "text",
-      "text": "为表 users 准备的模板内容..."
-    }
-  ]
+  {
+    "tplCategory": "crud",
+    "tableName": "users",
+    "functionName": "用户管理",
+    "ClassName": "User",
+    "className": "user",
+    "moduleName": "system",
+    "BusinessName": "User",
+    "businessName": "user",
+    "basePackage": "com.example",
+    "packageName": "com.example.system",
+    "author": "AutoGenerator",
+    "datetime": "2023-10-27",
+    "pkColumn": {
+      "columnName": "id",
+      "columnType": "int",
+      "javaType": "Long",
+      "javaField": "id",
+      "isPk": "1"
+    },
+    "importList": [
+      "com.example.system.domain.User"
+    ],
+    "permissionPrefix": "system:user",
+    "columns": [
+      {
+        "columnName": "id",
+        "columnType": "int",
+        "javaType": "Long",
+        "javaField": "id",
+        "isPk": "1",
+        "isRequired": "1"
+      },
+      {
+        "columnName": "name",
+        "columnType": "varchar(255)",
+        "javaType": "String",
+        "javaField": "name",
+        "isPk": "0",
+        "isRequired": "1"
+      }
+    ],
+    "hasDatetimeQuery": true
+  }
   ```
 - **curl命令**:
   ```bash
-  curl -X GET "http://localhost:3005/prepare_template_content?table_name=users"
+  curl -X GET "http://localhost:3005/prepare_template_context?table_name=users"
   ```
 
 **本节来源**
 - [server.py](file://src/mysql_mcp/server.py)
 - [types.py](file://src/mysql_mcp/types.py)
+- [gen/gen.py](file://src/mysql_mcp/gen/gen.py)
+- [gen/types.py](file://src/mysql_mcp/gen/types.py)
 
 ### fs_mcp 模块分析
 该模块提供对本地文件系统的读取功能。
@@ -608,7 +731,7 @@ ComponentDemo --> DemoFile : 包含
 ## 依赖分析
 各模块依赖关系清晰，耦合度低。
 
-``mermaid
+```mermaid
 graph TD
 element_plus_mcp --> github[github.py]
 element_plus_mcp --> models[models.py]
@@ -633,7 +756,7 @@ fs_mcp --> os[os库]
 - [server.py](file://src/fs_mcp/server.py)
 
 ## 性能考虑
-- **缓存**: `mysql_mcp` 模块对表结构和表列表查询结果进行了缓存，有效减少了对数据库的重复查询。
+- **缓存**: `mysql_mcp` 模块对表结构、表列表和模板上下文查询结果进行了缓存，`template_mcp` 模块对模板内容进行了缓存，有效减少了对数据库和文件系统的重复查询。
 - **超时**: `element_plus_mcp` 模块在调用GitHub API时设置了30秒的超时，防止请求长时间挂起。
 - **连接管理**: `mysql_mcp` 模块使用上下文管理器（`with` 语句）确保数据库连接的正确打开和关闭。
 

@@ -2,12 +2,12 @@
 
 <cite>
 **本文档引用文件**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
-- [controller.java.vm](file://src/template_mcp/template/java/controller.java.vm#L1-L120)
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
+- [server.py](file://src/template_mcp/server.py#L1-L354) - *已更新，添加缓存支持*
+- [controller.java.vm](file://src/template_mcp/template/java/controller.java.vm#L1-L120) - *已更新，模板内容修改*
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L69) - *已更新，模板内容修改*
+- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L150) - *已更新，添加缓存逻辑*
 - [mapper.java.vm](file://src/template_mcp/template/java/mapper.java.vm#L1-L110)
 - [service.java.vm](file://src/template_mcp/template/java/service.java.vm#L1-L63)
-- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L162)
 - [sub-domain.java.vm](file://src/template_mcp/template/java/sub-domain.java.vm#L1-L78)
 - [controller.java](file://src/template_mcp/sample/java/controller.java#L1-L111)
 - [domain.java](file://src/template_mcp/sample/java/domain.java#L1-L56)
@@ -15,6 +15,14 @@
 - [serviceImpl.java](file://src/template_mcp/sample/java/serviceImpl.java#L1-L101)
 - [mapper.java](file://src/template_mcp/sample/java/mapper.java#L1-L90)
 </cite>
+
+## 更新摘要
+**已更新内容**  
+- 更新了Controller、ServiceImpl和Domain模板文件的结构与注释说明
+- 增加了对模板内容缓存机制的详细说明
+- 更新了`get_template_content`工具的实现逻辑描述
+- 修正了因模板更新导致的代码生成结构变化
+- 更新了相关组件分析部分以反映最新代码状态
 
 ## 目录
 1. [简介](#简介)
@@ -66,12 +74,12 @@ style sample fill:#FF9800,stroke:#F57C00
 ```
 
 **图示来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 - [template/java](file://src/template_mcp/template/java/)
 - [sample/java](file://src/template_mcp/sample/java/)
 
 **本节来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 
 ## 核心组件
 `template_mcp`的核心功能由`server.py`实现，它提供了三个主要工具接口：`list_templates`、`get_template_content` 和 `get_sample_content`，用于列出模板、获取模板内容和获取示例代码。
@@ -79,7 +87,7 @@ style sample fill:#FF9800,stroke:#F57C00
 模板文件使用Velocity模板引擎语法（.vm扩展名），支持动态变量替换，如包名、类名、字段列表等。这些模板位于`template/java/`目录下，对应典型的Spring Boot + MyBatis Plus后端架构的各层代码。
 
 **本节来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 - [controller.java.vm](file://src/template_mcp/template/java/controller.java.vm#L1-L120)
 
 ## 架构概览
@@ -102,7 +110,7 @@ style Client fill:#C8E6C9,stroke:#388E3C
 ```
 
 **图示来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 - [template/java](file://src/template_mcp/template/java/)
 - [sample/java](file://src/template_mcp/sample/java/)
 
@@ -128,7 +136,7 @@ Java模板文件中广泛使用Velocity语法的变量占位符，这些变量�
 这些变量由模板引擎在渲染时注入，实现代码的动态生成。
 
 **本节来源**  
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L69)
 - [controller.java.vm](file://src/template_mcp/template/java/controller.java.vm#L1-L120)
 
 ### Domain模板分析
@@ -157,10 +165,10 @@ DomainEntity : @TableName("表名")
 ```
 
 **图示来源**  
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L69)
 
 **本节来源**  
-- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L66)
+- [domain.java.vm](file://src/template_mcp/template/java/domain.java.vm#L1-L69)
 - [domain.java](file://src/template_mcp/sample/java/domain.java#L1-L56)
 
 ### Controller模板分析
@@ -217,7 +225,7 @@ PromptServiceImpl --> PromptMapper : 依赖
 
 **图示来源**  
 - [service.java.vm](file://src/template_mcp/template/java/service.java.vm#L1-L63)
-- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L162)
+- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L150)
 
 **本节来源**  
 - [service.java.vm](file://src/template_mcp/template/java/service.java.vm#L1-L63)
@@ -239,11 +247,11 @@ UpdateDB --> Return2["return rows"]
 ```
 
 **图示来源**  
-- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L162)
+- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L150)
 - [serviceImpl.java](file://src/template_mcp/sample/java/serviceImpl.java#L1-L101)
 
 **本节来源**  
-- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L162)
+- [serviceImpl.java.vm](file://src/template_mcp/template/java/serviceImpl.java.vm#L1-L150)
 - [serviceImpl.java](file://src/template_mcp/sample/java/serviceImpl.java#L1-L101)
 
 ### Mapper模板分析
@@ -315,17 +323,24 @@ style TEMPLATE_BASE_DIR fill:#A5D6A7,stroke:#689F38
 ```
 
 **图示来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 
 **本节来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 
 ## 性能考虑
-模板服务为轻量级只读服务，主要性能开销在于文件I/O操作。建议：
-- 对频繁访问的模板进行内存缓存
+模板服务为轻量级只读服务，主要性能开销在于文件I/O操作。由于最新提交`90d44a8`和`661ebbd`为模板上下文和内容添加了缓存支持，显著减少了重复读取文件的开销。
+
+**: 性能优化建议**
+- 已实现内存缓存：`get_template_content`工具会先检查缓存中是否存在模板内容
+- 缓存键使用模板名称，命中后直接返回缓存结果
+- 建议定期清理缓存以避免内存泄漏
 - 使用异步I/O提高并发能力
 - 避免在模板中执行复杂计算
 - 合理设置日志级别以减少I/O压力
+
+**本节来源**  
+- [server.py](file://src/template_mcp/server.py#L200-L230)
 
 ## 故障排除指南
 常见问题及解决方案：
@@ -336,9 +351,10 @@ style TEMPLATE_BASE_DIR fill:#A5D6A7,stroke:#689F38
 - **变量未替换**: 确保模板引擎正确注入了上下文数据
 - **编码错误**: 所有模板文件应保存为UTF-8编码
 - **路径错误**: 检查`TEMPLATE_BASE_DIR`和`SAMPLE_BASE_DIR`的路径配置
+- **缓存问题**: 如果更新了模板但未生效，尝试清除缓存或重启服务
 
 **本节来源**  
-- [server.py](file://src/template_mcp/server.py#L1-L467)
+- [server.py](file://src/template_mcp/server.py#L1-L354)
 
 ## 结论
-Java代码模板系统通过Velocity模板引擎实现了高效的代码生成能力。开发者可通过调用`get_template_content`工具获取标准化的controller、service、mapper等层代码模板，大幅提高开发效率。系统结构清晰，易于扩展和维护，可根据项目需求自定义模板内容。建议在实际使用中结合代码生成器统一管理，确保代码风格一致性。
+Java代码模板系统通过Velocity模板引擎实现了高效的代码生成能力。开发者可通过调用`get_template_content`工具获取标准化的controller、service、mapper等层代码模板，大幅提高开发效率。系统结构清晰，易于扩展和维护，可根据项目需求自定义模板内容。最新版本已为模板内容添加缓存支持，提升了服务性能。建议在实际使用中结合代码生成器统一管理，确保代码风格一致性。

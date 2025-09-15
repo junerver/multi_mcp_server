@@ -2,20 +2,21 @@
 
 <cite>
 **本文档引用的文件**  
-- [server.py](file://src/mysql_mcp/server.py) - *新增模板上下文工具*
-- [gen/config.py](file://src/mysql_mcp/gen/config.py) - *添加于最近提交*
-- [gen/gen.py](file://src/mysql_mcp/gen/gen.py) - *添加于最近提交*
-- [gen/types.py](file://src/mysql_mcp/gen/types.py) - *添加于最近提交*
-- [cache.py](file://src/mysql_mcp/cache.py) - *已更新*
+- [server.py](file://src/mysql_mcp/server.py) - *已更新，包含缓存支持和工具名称修改*
+- [gen/gen.py](file://src/mysql_mcp/gen/gen.py) - *已更新，追加缺失上下文字段*
+- [gen/types.py](file://src/mysql_mcp/gen/types.py) - *已更新，增强模板数据结构*
+- [gen/utils.py](file://src/mysql_mcp/gen/utils.py) - *新增模板上下文工具功能*
+- [types.py](file://src/mysql_mcp/types.py) - *数据库配置类型定义*
 </cite>
 
 ## 更新摘要
 **变更内容**  
-- 新增了模板上下文生成工具 `prepare_template_content` 的接口定义
-- 添加了完整的模板生成模块 `gen`，包含配置、数据模型和生成逻辑
-- 更新了 `server.py` 文件以集成新功能
-- 扩展了依赖分析以包含新模块
-- 优化了架构概述以反映新增组件
+- 为 `prepare_template_context` 工具添加缓存支持，提升性能
+- 在模板生成过程中追加缺失的上下文字段，增强代码生成能力
+- 修改工具名称 `prepare_template_context` 以统一命名规范
+- 新增模板上下文处理工具，完善代码生成上下文准备逻辑
+- 更新 mcp-sdk 版本并调整服务器初始化方式
+- 移除冗余日志输出，优化代码可读性
 
 ## 目录
 1. [简介](#简介)
@@ -29,25 +30,25 @@
 9. [结论](#结论)
 
 ## 简介
-本项目 `mysql_mcp` 是一个基于 Model Context Protocol (MCP) 的 MySQL 数据库服务，旨在为 AI 助手提供安全、便捷的数据库交互能力。该服务通过定义标准化的工具（Tool）和资源（Resource）接口，允许外部系统查询表结构、执行 SELECT 查询、读取表数据等操作。服务通过环境变量进行数据库连接配置，实现了连接管理、结果缓存和错误处理等关键功能，确保了与 MySQL 数据库交互的安全性和可靠性。最新版本新增了模板上下文生成功能，能够根据数据库表结构准备代码生成所需的上下文信息。
+本项目 `mysql_mcp` 是一个基于 Model Context Protocol (MCP) 的 MySQL 数据库服务，旨在为 AI 助手提供安全、便捷的数据库交互能力。该服务通过定义标准化的工具（Tool）和资源（Resource）接口，允许外部系统查询表结构、执行 SELECT 查询、读取表数据等操作。服务通过环境变量进行数据库连接配置，实现了连接管理、结果缓存和错误处理等关键功能，确保了与 MySQL 数据库交互的安全性和可靠性。最新版本增强了模板上下文生成功能，支持缓存机制，并补充了缺失的上下文字段，提升了代码生成的完整性和性能。
 
 **本节来源**  
 - [server.py](file://src/mysql_mcp/server.py)
 
 ## 项目结构
-`mysql_mcp` 模块是项目中的一个独立组件，其结构在原有基础上进行了扩展，新增了 `gen` 目录用于模板上下文生成。该模块位于 `src/mysql_mcp/` 目录下，核心实现分布在多个文件中。
+`mysql_mcp` 模块是项目中的一个独立组件，其结构在原有基础上进行了优化，强化了 `gen` 目录下的模板上下文生成能力。该模块位于 `src/mysql_mcp/` 目录下，核心实现分布在多个文件中。
 
-``mermaid
+```mermaid
 graph TD
 subgraph "src/mysql_mcp"
 A[server.py]
-B[cache.py]
-C[types.py]
-D[gen/]
+B[types.py]
+C[gen/]
 end
-D --> E[config.py]
-D --> F[gen.py]
-D --> G[types.py]
+C --> D[config.py]
+C --> E[gen.py]
+C --> F[types.py]
+C --> G[utils.py]
 A --> H[MySQL Connector]
 A --> I[FastMCP Framework]
 A --> J[.env 配置文件]
@@ -58,16 +59,17 @@ A --> J[.env 配置文件]
 - [gen/gen.py](file://src/mysql_mcp/gen/gen.py)
 
 ## 核心组件
-`mysql_mcp` 的核心功能由 `server.py` 文件中的几个关键部分构成：数据库配置管理、全局缓存实例、MCP 服务实例以及一系列通过装饰器暴露的工具和资源。这些组件协同工作，实现了对 MySQL 数据库的安全查询和元数据访问。新增的 `gen` 模块提供了模板上下文生成功能，通过 `select_table_by_name` 和 `_select_table_columns_by_name` 等函数从数据库获取结构信息，并转换为代码生成所需的 `GenTable` 和 `GenTableColumn` 对象。
+`mysql_mcp` 的核心功能由 `server.py` 文件中的几个关键部分构成：数据库配置管理、全局缓存实例、MCP 服务实例以及一系列通过装饰器暴露的工具和资源。这些组件协同工作，实现了对 MySQL 数据库的安全查询和元数据访问。新增的 `gen` 模块提供了增强的模板上下文生成功能，通过 `select_table_by_name` 和 `select_table_columns_by_name` 等函数从数据库获取结构信息，并转换为代码生成所需的 `GenTable` 和 `GenTableColumn` 对象。`utils.py` 中的 `prepare_context` 函数负责将这些对象组装成完整的 `VelocityContext` 上下文。
 
 **本节来源**  
 - [server.py](file://src/mysql_mcp/server.py)
 - [gen/gen.py](file://src/mysql_mcp/gen/gen.py)
+- [gen/utils.py](file://src/mysql_mcp/gen/utils.py)
 
 ## 架构概述
-该服务采用轻量级的微服务架构，基于 FastMCP 框架构建。其核心架构围绕 MCP 协议展开，通过定义 `tool` 和 `resource` 来暴露功能。服务启动时，会读取环境变量以获取数据库连接信息，并创建一个全局的 `FastMCP` 实例。所有数据库操作都通过这个实例提供的接口进行，确保了调用的统一性和安全性。当客户端请求到达时，服务会解析请求，执行相应的数据库查询，并将格式化后的结果返回。新增的模板上下文生成功能通过 `prepare_template_content` 工具暴露，能够根据表名查询完整的表结构和列信息，并转换为代码生成所需的上下文对象。
+该服务采用轻量级的微服务架构，基于 FastMCP 框架构建。其核心架构围绕 MCP 协议展开，通过定义 `tool` 和 `resource` 来暴露功能。服务启动时，会读取环境变量以获取数据库连接信息，并创建一个全局的 `FastMCP` 实例。所有数据库操作都通过这个实例提供的接口进行，确保了调用的统一性和安全性。当客户端请求到达时，服务会解析请求，执行相应的数据库查询，并将格式化后的结果返回。增强的模板上下文生成功能通过 `prepare_template_context` 工具暴露，能够根据表名查询完整的表结构和列信息，并转换为代码生成所需的 `VelocityContext` 对象，且结果会被缓存以提升性能。
 
-``mermaid
+```mermaid
 graph TD
 Client[客户端] --> |HTTP/SSE/stdio| Server[MCP Server]
 Server --> Config[get_db_config]
@@ -96,10 +98,10 @@ end
 本节将深入分析 `mysql_mcp` 服务中的各个关键组件，包括其数据结构、方法实现和交互逻辑。
 
 ### 缓存机制分析
-服务实现了一个简单的内存缓存机制，用于存储频繁访问的元数据（如表结构和表列表），以减少对数据库的重复查询，提高响应速度。
+服务实现了一个简单的内存缓存机制，用于存储频繁访问的元数据（如表结构、表列表和模板上下文），以减少对数据库的重复查询，提高响应速度。
 
 #### 缓存类结构
-``mermaid
+```mermaid
 classDiagram
 class Cache {
 +_cache : Dict[str, Dict[str, Any]]
@@ -112,10 +114,10 @@ class Cache {
 ```
 
 **图示来源**  
-- [cache.py](file://src/mysql_mcp/cache.py)
+- [common/cache.py](file://src/common/cache.py)
 
 **本节来源**  
-- [cache.py](file://src/mysql_mcp/cache.py)
+- [common/cache.py](file://src/common/cache.py)
 
 **分析**：
 - **`_cache`**: 一个字典，键为缓存键（`str`），值为包含 `value`（实际数据）和 `timestamp`（存入时间）的字典。
@@ -149,13 +151,13 @@ class Cache {
 - **结果格式化**: 返回结果为 CSV 格式的字符串，便于解析。
 
 #### 接口列表
-``mermaid
+```mermaid
 flowchart TD
 A[功能接口] --> B[read_resource]
 A --> C[read_query]
 A --> D[describe_table]
 A --> E[list_tables]
-A --> F[prepare_template_content]
+A --> F[prepare_template_context]
 B --> G["mysql://{table_name}/data"]
 C --> H["执行任意 SELECT 查询"]
 D --> I["获取表结构"]
@@ -191,17 +193,18 @@ F --> K["准备模板上下文"]
   - **缓存**: 结果会被缓存，键为 `tables_{database}`。
   - **返回**: 表名与注释的列表。
 
-- **`prepare_template_content(table_name)`**:
+- **`prepare_template_context(table_name)`**:
   - **类型**: `tool`
   - **功能**: 为指定表准备模板生成所需的上下文信息。
-  - **实现**: 调用 `gen` 模块中的 `select_table_by_name` 函数，从数据库获取表结构和列信息，并转换为 `GenTable` 对象。
-  - **返回**: `TextContent` 对象列表，包含准备好的模板上下文。
+  - **实现**: 调用 `gen` 模块中的 `select_table_by_name` 和 `select_table_columns_by_name` 函数，从数据库获取表结构和列信息，通过 `init_column_field` 和 `set_pk_column` 初始化列属性，最后由 `prepare_context` 组装成 `VelocityContext` 对象。
+  - **缓存**: 结果会被缓存，键为 `table_name`。
+  - **返回**: `VelocityContext` 对象，包含所有代码生成所需的上下文信息。
 
 ### 模板生成模块分析
-新增的 `gen` 模块负责从数据库表结构生成代码模板所需的上下文信息。
+`gen` 模块负责从数据库表结构生成代码模板所需的上下文信息。
 
 #### 数据模型
-``mermaid
+```mermaid
 classDiagram
 class GenTable {
 +tableName : str
@@ -244,7 +247,41 @@ class GenTableColumn {
 +dictType : str
 +sort : int
 }
+class VelocityContext {
++tplCategory : str
++tableName : str
++functionName : str
++ClassName : str
++className : str
++moduleName : str
++BusinessName : str
++businessName : str
++basePackage : str
++packageName : str
++author : str
++datetime : str
++pkColumn : GenTableColumn
++importList : list[str]
++permissionPrefix : str
++columns : list[GenTableColumn]
++table : GenTable
++dicts : list[str]
++treeCode : str
++treeParentCode : str
++treeName : str
++parentMenuId : str
++parentMenuName : str
++subTable : GenTable
++subTableName : str
++subTableFkName : str
++subClassName : str
++subTableFkClassName : str
++hasDatetimeQuery : bool
++extra : Dict[str, Any]
+}
 GenTable --> GenTableColumn : 包含
+VelocityContext --> GenTable : 包含
+VelocityContext --> GenTableColumn : 包含
 ```
 
 **图示来源**  
@@ -256,33 +293,41 @@ GenTable --> GenTableColumn : 包含
 **分析**：
 - **`GenTable`**: 表示数据库表的完整信息，包括表名、注释、类名、包名、模块名等代码生成所需的所有元数据。
 - **`GenTableColumn`**: 表示表中单个列的信息，包括列名、类型、Java类型、是否为主键、是否必填等属性。
+- **`VelocityContext`**: 表示最终传递给模板引擎的完整上下文，包含了 `GenTable` 及其所有列，并补充了权限前缀、导入列表、字典列表等额外信息。
 
 #### 生成逻辑
-``mermaid
+```mermaid
 flowchart TD
-A[prepare_template_content] --> B[select_table_by_name]
+A[prepare_template_context] --> B[select_table_by_name]
 B --> C[查询表基本信息]
-B --> D[_select_table_columns_by_name]
+B --> D[select_table_columns_by_name]
 D --> E[查询列信息]
-E --> F[转换为GenTableColumn]
-C --> G[转换为GenTable]
-G --> H[返回模板上下文]
+E --> F[init_column_field]
+F --> G[初始化列属性]
+C --> H[set_pk_column]
+H --> I[设置主键]
+G --> J[prepare_context]
+I --> J
+J --> K[返回VelocityContext]
 ```
 
 **图示来源**  
 - [gen/gen.py](file://src/mysql_mcp/gen/gen.py)
+- [gen/utils.py](file://src/mysql_mcp/gen/utils.py)
 
 **本节来源**  
 - [gen/gen.py](file://src/mysql_mcp/gen/gen.py)
+- [gen/utils.py](file://src/mysql_mcp/gen/utils.py)
 
 **分析**：
 - **`select_table_by_name`**: 根据表名查询数据库，获取表的基本信息，并转换为 `GenTable` 对象。
-- **`_select_table_columns_by_name`**: 根据表名查询数据库，获取所有列的详细信息，并转换为 `GenTableColumn` 对象列表。
-- **`_convert_class_name`**: 将表名转换为驼峰命名的类名，支持自动移除配置的表前缀。
-- **`_convert_column_type_to_java`**: 将数据库列类型转换为对应的 Java 类型。
+- **`select_table_columns_by_name`**: 根据表名查询数据库，获取所有列的详细信息，并转换为 `GenTableColumn` 对象列表。
+- **`init_column_field`**: 根据列名、类型等信息，初始化列的 Java 字段名、HTML 控件类型、是否为插入/编辑/列表/查询字段等属性。
+- **`set_pk_column`**: 从列列表中找出主键列，并设置到 `GenTable` 的 `pkColumn` 字段。
+- **`prepare_context`**: 将 `GenTable` 对象转换为 `VelocityContext` 对象，补充权限前缀、导入列表、字典列表等信息。
 
 #### 配置管理
-``mermaid
+```mermaid
 classDiagram
 class GEN_CONFIG {
 +author : str
@@ -328,7 +373,7 @@ class GEN_CONFIG {
 ## 依赖分析
 `mysql_mcp` 服务依赖于几个关键的外部库和框架。
 
-``mermaid
+```mermaid
 graph LR
 A[mysql_mcp] --> B[mysql-connector-python]
 A --> C[FastMCP]
@@ -341,6 +386,7 @@ A --> I[gen模块]
 I --> J[config.py]
 I --> K[gen.py]
 I --> L[types.py]
+I --> M[utils.py]
 ```
 
 **图示来源**  
@@ -358,10 +404,10 @@ I --> L[types.py]
 - **`click`**: 用于创建命令行界面，处理 `--port` 和 `--transport` 参数。
 - **`python-dotenv`**: 用于从 `.env` 文件加载环境变量。
 - **`uvicorn` 和 `starlette`**: 用于在 `sse` 或 `streamable` 模式下运行 HTTP 服务器，`CORSMiddleware` 提供了跨域支持。
-- **`gen` 模块**: 新增的模板上下文生成模块，包含配置、数据模型和生成逻辑。
+- **`gen` 模块**: 模板上下文生成模块，包含配置、数据模型、生成逻辑和工具函数。
 
 ## 性能考虑
-- **缓存**: `describe_table` 和 `list_tables` 工具使用了内存缓存，显著减少了对 `information_schema` 的查询次数，这是提升性能的关键。
+- **缓存**: `describe_table`、`list_tables` 和 `prepare_template_context` 工具均使用了内存缓存，显著减少了对 `information_schema` 的查询次数，这是提升性能的关键。
 - **查询限制**: `read_resource` 对返回行数进行了 `LIMIT 100` 的限制，防止一次性加载过多数据导致内存溢出或响应过慢。
 - **连接管理**: 使用上下文管理器（`with connect(...) as conn`）确保了数据库连接的及时释放，避免了连接泄漏。
 - **建议**: 对于 `read_query`，建议用户在查询中加入 `LIMIT` 子句以控制结果集大小。可以考虑为 `read_query` 也增加一个可选的 `limit` 参数。
@@ -382,4 +428,4 @@ I --> L[types.py]
   - **`read_resource` 返回空**: 该表可能没有数据。
 
 ## 结论
-`mysql_mcp` 服务成功地为 AI 助手提供了一个安全、高效且易于使用的 MySQL 数据库查询接口。其设计简洁，通过 MCP 协议清晰地定义了功能边界。服务通过环境变量配置、输入验证、结果缓存和详尽的错误处理，确保了生产环境下的稳定性和安全性。新增的模板上下文生成功能扩展了服务的能力，使其不仅能够查询数据，还能为代码生成提供结构化的上下文信息。该服务是构建数据驱动型 AI 应用的理想组件，能够帮助 AI 模型理解数据库结构并获取所需的数据信息。
+`mysql_mcp` 服务成功地为 AI 助手提供了一个安全、高效且易于使用的 MySQL 数据库查询接口。其设计简洁，通过 MCP 协议清晰地定义了功能边界。服务通过环境变量配置、输入验证、结果缓存和详尽的错误处理，确保了生产环境下的稳定性和安全性。增强的模板上下文生成功能扩展了服务的能力，使其不仅能够查询数据，还能为代码生成提供结构化、完整的上下文信息。该服务是构建数据驱动型 AI 应用的理想组件，能够帮助 AI 模型理解数据库结构并获取所需的数据信息。
