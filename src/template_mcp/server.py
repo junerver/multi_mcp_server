@@ -5,9 +5,9 @@
 import logging
 import sys
 from pathlib import Path
-from typing import List
+from typing import List,Annotated
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP,Context
 from mcp.types import TextContent, Prompt, PromptMessage
 from pydantic import Field
 
@@ -188,7 +188,8 @@ def list_templates() -> Prompt:
 
 @mcp.tool()
 def get_template_content(
-    template_name: str = Field(..., description="模板文件名称，支持的模板名称请参考 list_templates prompt"),
+    template_name: Annotated[str,Field(..., description="模板文件名称，支持的模板名称请参考 list_templates prompt")],
+    ctx: Context
 ) -> List[TextContent]:
     """根据模板名称获取模板文件内容
 
@@ -198,6 +199,9 @@ def get_template_content(
     Returns:
         List[TextContent]: 包含模板文件内容的文本内容列表
     """
+    headers = ctx.request_context.request.headers
+    logger.info(f"获取到header中的随机字符：{headers.get("x-random")}")
+    
     if cache.get(template_name):
         return [TextContent(type="text", text=cache.get(template_name))]
     try:
